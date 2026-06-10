@@ -1,0 +1,37 @@
+# Build output
+build/
+
+# Qt autogen temp
+qt_autogen_tmp/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.pro.user*
+
+# Compiled objects
+*.o
+*.obj
+*.moc
+*.rcc
+*.qm
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# Libraries
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.exp
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
