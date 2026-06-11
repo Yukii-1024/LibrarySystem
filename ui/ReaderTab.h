@@ -3,6 +3,7 @@
 #include <QLineEdit>
 #include <QTableWidget>
 #include <QLabel>
+#include <QPushButton>
 
 class LibrarySystem;
 
@@ -15,6 +16,7 @@ public:
 private slots:
     void onAdd();
     void onDelete();
+    void onEdit();
     void onSearch();
 
 private:
@@ -23,4 +25,7 @@ private:
     QLineEdit* idEdit, *pwdEdit, *nameEdit, *deptEdit, *searchEdit;
     QTableWidget* table;
     QLabel* statusLabel;
+    QPushButton* addBtn;
+    QPushButton* editBtn;
+    QString editingId;
 };

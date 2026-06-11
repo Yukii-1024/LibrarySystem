@@ -30,10 +30,13 @@ void ReaderTab::setupUI()
     formHL->addLayout(form);
 
     auto* btnLay = new QVBoxLayout();
-    auto* addBtn = new QPushButton(QString::fromUtf8("添加读者"));
+    addBtn = new QPushButton(QString::fromUtf8("添加读者"));
+    editBtn = new QPushButton(QString::fromUtf8("修改选中"));
+    editBtn->setEnabled(false);
     auto* delBtn = new QPushButton(QString::fromUtf8("删除读者"));
     auto* clrBtn = new QPushButton(QString::fromUtf8("清空表单"));
-    btnLay->addWidget(addBtn); btnLay->addWidget(delBtn);
+    btnLay->addWidget(addBtn); btnLay->addWidget(editBtn);
+    btnLay->addWidget(delBtn);
     btnLay->addWidget(clrBtn); btnLay->addStretch();
     formHL->addLayout(btnLay);
     main->addWidget(formBox);
@@ -60,9 +63,15 @@ void ReaderTab::setupUI()
     main->addWidget(statusLabel);
 
     connect(addBtn, &QPushButton::clicked, this, &ReaderTab::onAdd);
+    connect(editBtn, &QPushButton::clicked, this, &ReaderTab::onEdit);
     connect(delBtn, &QPushButton::clicked, this, &ReaderTab::onDelete);
     connect(clrBtn, &QPushButton::clicked, this, [this]() {
         idEdit->clear(); pwdEdit->clear(); nameEdit->clear(); deptEdit->clear();
+        editingId.clear();
+        addBtn->setText(QString::fromUtf8("添加读者"));
+    });
+    connect(table, &QTableWidget::itemSelectionChanged, this, [this]() {
+        editBtn->setEnabled(table->currentRow() >= 0);
     });
     connect(srcBtn, &QPushButton::clicked, this, &ReaderTab::onSearch);
     connect(searchEdit, &QLineEdit::returnPressed, this, &ReaderTab::onSearch);
@@ -73,6 +82,18 @@ void ReaderTab::onAdd()
     QString id = idEdit->text().trimmed();
     QString pwd = pwdEdit->text();
     QString name = nameEdit->text().trimmed();
+    QString dept = deptEdit->text().trimmed();
+
+    // 编辑模式下调用更新
+    if (!editingId.isEmpty()) {
+        library->updateReader(editingId, name, dept, pwd);
+        editingId.clear();
+        addBtn->setText(QString::fromUtf8("添加读者"));
+        refreshTable();
+        statusLabel->setText(QString::fromUtf8("已修改读者: %1").arg(name));
+        return;
+    }
+
     if (id.isEmpty() || pwd.isEmpty() || name.isEmpty()) {
         QMessageBox::warning(this, QString::fromUtf8("输入错误"), QString::fromUtf8("学号、密码和姓名为必填"));
         return;
@@ -82,7 +103,7 @@ void ReaderTab::onAdd()
         return;
     }
     library->addReader(new Reader(id.toStdString(), pwd.toStdString(),
-                                  name.toStdString(), deptEdit->text().trimmed().toStdString(), false));
+                                  name.toStdString(), dept.toStdString(), false));
     refreshTable();
     statusLabel->setText(QString::fromUtf8("已添加读者: %1").arg(name));
 }
@@ -98,6 +119,23 @@ void ReaderTab::onDelete()
     else
         statusLabel->setText(QString::fromUtf8("已删除: %1").arg(id));
     refreshTable();
+}
+
+void ReaderTab::onEdit()
+{
+    int row = table->currentRow();
+    if (row < 0) return;
+
+    editingId = table->item(row, 0)->text();
+    idEdit->setText(editingId);
+    idEdit->setReadOnly(true);
+    nameEdit->setText(table->item(row, 1)->text());
+    // 院系列在索引2
+    QStringList parts = table->item(row, 3)->text().split("/");
+    deptEdit->setText(table->item(row, 2)->text());
+    pwdEdit->clear();
+    addBtn->setText(QString::fromUtf8("保存修改"));
+    statusLabel->setText(QString::fromUtf8("正在编辑读者: %1").arg(editingId));
 }
 
 void ReaderTab::onSearch()
