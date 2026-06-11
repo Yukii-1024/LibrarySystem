@@ -9,6 +9,8 @@ LibrarySystem::LibrarySystem(QObject* parent)
           64, [](Reader* r) { return r ? r->id : ""; }))
     , bookTitleHash(new HashTable<Book, std::function<std::string(Book*)>>(
           64, [](Book* b) { return b ? b->title : ""; }))
+    , bookISBNHash(new HashTable<Book, std::function<std::string(Book*)>>(
+          64, [](Book* b) { return b ? b->isbn : ""; }))
     , hotHeap(new MaxHeap<Book, std::function<int(Book*)>>(
           [](Book* b) { return b ? b->borrowCount : 0; }))
 {
@@ -23,6 +25,7 @@ LibrarySystem::~LibrarySystem()
     delete bookBST;
     delete readerHash;
     delete bookTitleHash;
+    delete bookISBNHash;
     delete hotHeap;
 }
 
@@ -33,6 +36,7 @@ Status LibrarySystem::addBook(Book* book)
     bookList.append(book);
     bookBST->insert(book);
     bookTitleHash->insert(book);
+    bookISBNHash->insert(book);
     hotHeap->insert(book);
     recommendationGraph.addVertex(book->isbn);
 
@@ -52,6 +56,7 @@ Status LibrarySystem::removeBook(const QString& isbn)
     bookList.removeIf([&](Book* b) { return b->isbn == sIsbn; });
     bookBST->remove(target->callNumber);
     bookTitleHash->remove(target->title);
+    bookISBNHash->remove(sIsbn);
     recommendationGraph.removeVertex(sIsbn);
     // 注意：hotHeap不支持直接删除，这里简化处理
 
@@ -61,14 +66,36 @@ Status LibrarySystem::removeBook(const QString& isbn)
     return Status::OK;
 }
 
+Status LibrarySystem::updateBook(const QString& isbn, const QString& newTitle,
+                                  const QString& newAuthor, const QString& newPublisher,
+                                  int newTotalStock)
+{
+    Book* b = findByISBN(isbn);
+    if (!b) return Status::NotFound;
+
+    std::string oldTitle = b->title;
+    b->title = newTitle.toStdString();
+    b->author = newAuthor.toStdString();
+    b->publisher = newPublisher.toStdString();
+
+    int stockDiff = newTotalStock - b->totalStock;
+    b->totalStock = newTotalStock;
+    b->availableStock += stockDiff;
+    if (b->availableStock < 0) b->availableStock = 0;
+
+    if (oldTitle != b->title) {
+        bookTitleHash->remove(oldTitle);
+        bookTitleHash->insert(b);
+    }
+
+    emitOp("修改图书", {"链表", "哈希表"},
+           QString("修改图书《%1》信息").arg(QString::fromStdString(b->title)));
+    return Status::OK;
+}
+
 Book* LibrarySystem::findByISBN(const QString& isbn) const
 {
-    std::string s = isbn.toStdString();
-    Book* result = nullptr;
-    bookList.traverse([&](Book* b) {
-        if (b->isbn == s) result = b;
-    });
-    return result;
+    return bookISBNHash->find(isbn.toStdString());
 }
 
 Book* LibrarySystem::findByCallNumber(const QString& callNum) const
@@ -115,6 +142,21 @@ Status LibrarySystem::removeReader(const QString& id)
     delete r;
 
     emitOp("注销读者", {"链表", "哈希表"}, "从各结构中移除读者");
+    return Status::OK;
+}
+
+Status LibrarySystem::updateReader(const QString& id, const QString& newName,
+                                    const QString& newDept, const QString& newPwd)
+{
+    Reader* r = findReader(id);
+    if (!r) return Status::NotFound;
+
+    if (!newName.isEmpty()) r->name = newName.toStdString();
+    if (!newDept.isEmpty()) r->department = newDept.toStdString();
+    if (!newPwd.isEmpty()) r->password = newPwd.toStdString();
+
+    emitOp("修改读者", {"哈希表"},
+           QString("修改读者 %1 信息").arg(QString::fromStdString(r->name)));
     return Status::OK;
 }
 
@@ -168,6 +210,12 @@ Status LibrarySystem::borrowBook(const QString& readerId, const QString& isbn)
     op.type = OperationType::BorrowBook;
     op.readerId = readerId;
     op.bookISBN = isbn;
+    // 存储相关联的ISBN列表（用于撤销时回滚图边）
+    QStringList relatedList;
+    for (const auto& s : readerBooks) {
+        relatedList.push_back(QString::fromStdString(s));
+    }
+    op.extraData = relatedList.join(",");
     op.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
     undoStack.push(op);
 
@@ -182,19 +230,60 @@ Status LibrarySystem::returnBook(const QString& readerId, const QString& isbn)
     Book* b = findByISBN(isbn);
     if (!r || !b) return Status::NotFound;
 
-    b->availableStock++;
-    r->currentBorrow--;
-
-    // 标记记录为已归还
+    // 校验该读者确实借了这本书
     std::string sReader = readerId.toStdString();
     std::string sIsbn = isbn.toStdString();
+    bool found = false;
     borrowRecords.traverse([&](BorrowRecord* br) {
         if (!br->returned && br->readerId == sReader && br->bookISBN == sIsbn) {
             br->markReturned();
+            found = true;
         }
     });
+    if (!found) return Status::NotFound;
+
+    b->availableStock++;
+    r->currentBorrow--;
 
     hotHeap->updateKey(b);
+
+    // 还书后自动处理预约队列：为下一位等待读者办理借书
+    auto it = reservationQueues.find(sIsbn);
+    while (it != reservationQueues.end() && !it->second.isEmpty()) {
+        QString nextReaderId;
+        if (it->second.dequeue(nextReaderId) != Status::OK) break;
+        Reader* nextR = findReader(nextReaderId);
+        Book* nextB = b; // 还书后刚增加了库存
+        if (!nextR || !nextB || nextB->availableStock <= 0) continue;
+
+        nextB->availableStock--;
+        nextB->borrowCount++;
+        nextR->currentBorrow++;
+
+        auto* record = new BorrowRecord(nextRecordId++,
+            nextReaderId.toStdString(), sIsbn);
+        borrowRecords.append(record);
+
+        hotHeap->updateKey(nextB);
+
+        // 更新推荐图
+        std::vector<std::string> readerRelated;
+        borrowRecords.traverse([&](BorrowRecord* br) {
+            if (!br->returned && br->readerId == nextReaderId.toStdString()
+                && br->bookISBN != sIsbn) {
+                readerRelated.push_back(br->bookISBN);
+            }
+        });
+        for (const auto& otherIsbn : readerRelated) {
+            recommendationGraph.addEdge(sIsbn, otherIsbn, 1);
+        }
+    }
+    if (it != reservationQueues.end() && it->second.isEmpty()) {
+        reservationQueues.erase(it);
+    }
+
+    // 存储相关联的ISBN（用于撤销还书时的图回滚）
+    // 还书操作不影响图边，但撤销还书时需重新建立关联，暂不需要
 
     OperationRecord op;
     op.type = OperationType::ReturnBook;
@@ -203,8 +292,8 @@ Status LibrarySystem::returnBook(const QString& readerId, const QString& isbn)
     op.timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
     undoStack.push(op);
 
-    emitOp("还书", {"哈希表", "二叉排序树", "链表", "堆", "栈"},
-           "归还图书，更新库存、读者借阅数、堆排行，栈记录操作");
+    emitOp("还书", {"哈希表", "二叉排序树", "链表", "堆", "队列", "栈"},
+           "归还图书，自动处理预约队列，更新排行榜");
     return Status::OK;
 }
 
@@ -231,6 +320,11 @@ Status LibrarySystem::undoLastOperation()
                 br->markReturned();
             }
         });
+        // 回滚推荐图边：减少本次借阅建立的关联权重
+        QStringList relatedList = op.extraData.split(",", Qt::SkipEmptyParts);
+        for (const auto& otherIsbn : relatedList) {
+            recommendationGraph.addEdge(op.bookISBN.toStdString(), otherIsbn.toStdString(), -1);
+        }
     } else if (op.type == OperationType::ReturnBook) {
         // 撤销还书 = 重新借出（但不记录栈）
         Reader* r = findReader(op.readerId);

@@ -17,6 +17,7 @@ private slots:
     void onReturn();
     void onUndo();
     void onReserve();
+    void onShowQueues();
     void checkStatus();
 
 private:

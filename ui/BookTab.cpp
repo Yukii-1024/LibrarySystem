@@ -40,10 +40,13 @@ void BookTab::setupUI()
     formHL->addLayout(form);
 
     auto* btnLay = new QVBoxLayout();
-    auto* addBtn = new QPushButton(QString::fromUtf8("添加图书"));
+    addBtn = new QPushButton(QString::fromUtf8("添加图书"));
+    editBtn = new QPushButton(QString::fromUtf8("修改选中"));
+    editBtn->setEnabled(false);
     auto* delBtn = new QPushButton(QString::fromUtf8("删除选中"));
     auto* clrBtn = new QPushButton(QString::fromUtf8("清空表单"));
-    btnLay->addWidget(addBtn); btnLay->addWidget(delBtn);
+    btnLay->addWidget(addBtn); btnLay->addWidget(editBtn);
+    btnLay->addWidget(delBtn);
     btnLay->addWidget(clrBtn); btnLay->addStretch();
     formHL->addLayout(btnLay);
 
@@ -82,14 +85,21 @@ void BookTab::setupUI()
 
     // Connections
     connect(addBtn, &QPushButton::clicked, this, &BookTab::onAdd);
+    connect(editBtn, &QPushButton::clicked, this, &BookTab::onEdit);
     connect(delBtn, &QPushButton::clicked, this, &BookTab::onDelete);
     connect(clrBtn, &QPushButton::clicked, this, [this]() {
-        isbnEdit->clear(); callNumEdit->clear(); titleEdit->clear();
+        isbnEdit->clear(); isbnEdit->setReadOnly(false);
+        callNumEdit->clear(); titleEdit->clear();
         authorEdit->clear(); pubEdit->clear(); stockSpin->setValue(3);
+        editingISBN.clear();
+        addBtn->setText(QString::fromUtf8("添加图书"));
     });
     connect(srcBtn, &QPushButton::clicked, this, &BookTab::onSearch);
     connect(rangeBtn, &QPushButton::clicked, this, &BookTab::onRangeQuery);
     connect(searchEdit, &QLineEdit::returnPressed, this, &BookTab::onSearch);
+    connect(table, &QTableWidget::itemSelectionChanged, this, [this]() {
+        editBtn->setEnabled(table->currentRow() >= 0);
+    });
 }
 
 void BookTab::onAdd()
@@ -97,6 +107,18 @@ void BookTab::onAdd()
     QString isbn = isbnEdit->text().trimmed();
     QString callNum = callNumEdit->text().trimmed();
     QString title = titleEdit->text().trimmed();
+
+    // 编辑模式下调用更新
+    if (!editingISBN.isEmpty()) {
+        library->updateBook(editingISBN, title,
+            authorEdit->text().trimmed(), pubEdit->text().trimmed(), stockSpin->value());
+        editingISBN.clear();
+        addBtn->setText(QString::fromUtf8("添加图书"));
+        refreshTable();
+        statusLabel->setText(QString::fromUtf8("已修改: 《%1》").arg(title));
+        return;
+    }
+
     if (isbn.isEmpty() || callNum.isEmpty() || title.isEmpty()) {
         QMessageBox::warning(this, QString::fromUtf8("输入错误"), QString::fromUtf8("ISBN、索书号和书名为必填"));
         return;
@@ -120,6 +142,24 @@ void BookTab::onDelete()
     library->removeBook(isbn);
     refreshTable();
     statusLabel->setText(QString::fromUtf8("已删除 ISBN: %1").arg(isbn));
+}
+
+void BookTab::onEdit()
+{
+    int row = table->currentRow();
+    if (row < 0) return;
+
+    editingISBN = table->item(row, 0)->text();
+    callNumEdit->setText(table->item(row, 1)->text());
+    titleEdit->setText(table->item(row, 2)->text());
+    authorEdit->setText(table->item(row, 3)->text());
+    pubEdit->setText(table->item(row, 4)->text());
+    stockSpin->setValue(table->item(row, 5)->text().toInt());
+
+    isbnEdit->setText(editingISBN);
+    isbnEdit->setReadOnly(true);
+    addBtn->setText(QString::fromUtf8("保存修改"));
+    statusLabel->setText(QString::fromUtf8("正在编辑: %1").arg(editingISBN));
 }
 
 void BookTab::onSearch()

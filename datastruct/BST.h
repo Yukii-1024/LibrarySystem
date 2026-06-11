@@ -103,7 +103,7 @@ private:
         }
         // 预留AVL：更新高度并平衡
         n->height = 1 + std::max(getHeight(n->left), getHeight(n->right));
-        return n; // 升级AVL时这里改为 return balance(n);
+        return balance(n);
     }
 
     Node* removeNode(Node* n, const std::string& key) {
@@ -128,7 +128,7 @@ private:
             n->right = removeNode(n->right, getKey(temp->data));
         }
         n->height = 1 + std::max(getHeight(n->left), getHeight(n->right));
-        return n; // 升级AVL时改为 return balance(n);
+        return balance(n);
     }
 
     Node* findMin(Node* n) const {
