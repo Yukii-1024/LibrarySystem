@@ -26,7 +26,14 @@ set(SOURCES
     ui/MainWindow.cpp
     ui/LoginDialog.cpp
     ui/VisualPanel.cpp
+    ui/BookTab.cpp
+    ui/ReaderTab.cpp
+    ui/BorrowTab.cpp
+    ui/SeatTab.cpp
+    ui/HotRankTab.cpp
+    ui/RecommendTab.cpp
     core/LibrarySystem.cpp
+    core/SeedData.cpp
     persistence/DataPersistence.cpp
     utils/Logger.cpp
 )
@@ -48,7 +55,14 @@ set(HEADERS
     ui/MainWindow.h
     ui/LoginDialog.h
     ui/VisualPanel.h
+    ui/BookTab.h
+    ui/ReaderTab.h
+    ui/BorrowTab.h
+    ui/SeatTab.h
+    ui/HotRankTab.h
+    ui/RecommendTab.h
     core/LibrarySystem.h
+    core/SeedData.h
     persistence/DataPersistence.h
     utils/Logger.h
 )

@@ -81,6 +81,10 @@ public:
     Graph& getRecommendationGraph() { return recommendationGraph; }
     MaxHeap<Book, std::function<int(Book*)>>& getHotHeap() { return *hotHeap; }
     SparseMatrix<Seat>& getSeatMatrix() { return seatMatrix; }
+    const std::map<std::string, Queue<QString>>& getReservationQueues() const { return reservationQueues; }
+    std::map<std::string, Queue<QString>>& getReservationQueuesRef() { return reservationQueues; }
+    void setNextRecordId(int id) { nextRecordId = id; }
+    int getNextRecordId() const { return nextRecordId; }
 
 signals:
     void operationPerformed(const QString& opName,

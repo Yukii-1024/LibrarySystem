@@ -6,12 +6,13 @@
 
 class VisualPanel;
 class LoginDialog;
+class BookTab;
+class ReaderTab;
+class BorrowTab;
+class SeatTab;
+class HotRankTab;
+class RecommendTab;
 
-/**
- * 主窗口
- * 左侧：功能Tab页（图书、读者、借阅、座位、推荐）
- * 右侧：数据结构可视化面板
- */
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -22,16 +23,28 @@ public:
 private slots:
     void onLoginSuccess();
     void showAbout();
+    void onSaveData();
+    void onLoadData();
+    void onTabChanged(int index);
 
 private:
     void setupUI();
     void setupMenuBar();
     void setupConnections();
+    void populateSampleDataIfNeeded();
+    void refreshAllTabs();
 
     QSplitter* centralSplitter = nullptr;
     QTabWidget* funcTabs = nullptr;
     VisualPanel* visualPanel = nullptr;
     LibrarySystem* library = nullptr;
+
+    BookTab* bookTab = nullptr;
+    ReaderTab* readerTab = nullptr;
+    BorrowTab* borrowTab = nullptr;
+    SeatTab* seatTab = nullptr;
+    HotRankTab* hotRankTab = nullptr;
+    RecommendTab* recommendTab = nullptr;
 
     bool isAdmin = false;
     QString currentReaderId;

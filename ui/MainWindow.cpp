@@ -1,6 +1,14 @@
 #include "MainWindow.h"
 #include "VisualPanel.h"
 #include "LoginDialog.h"
+#include "BookTab.h"
+#include "ReaderTab.h"
+#include "BorrowTab.h"
+#include "SeatTab.h"
+#include "HotRankTab.h"
+#include "RecommendTab.h"
+#include "core/SeedData.h"
+#include "persistence/DataPersistence.h"
 #include <QSplitter>
 #include <QTabWidget>
 #include <QMenuBar>
@@ -9,6 +17,8 @@
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QApplication>
+#include <QFileDialog>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -21,7 +31,7 @@ MainWindow::MainWindow(QWidget* parent)
     setupMenuBar();
     setupConnections();
 
-    LoginDialog dlg(this);
+    LoginDialog dlg(library, this);
     if (dlg.exec() == QDialog::Accepted) {
         isAdmin = dlg.isAdminLogin();
         currentReaderId = dlg.getReaderId();
@@ -38,12 +48,21 @@ void MainWindow::setupUI()
     centralSplitter = new QSplitter(Qt::Horizontal, this);
 
     funcTabs = new QTabWidget(centralSplitter);
-    funcTabs->addTab(new QWidget(), QString::fromUtf8("\U0001F4DA 图书管理"));
-    funcTabs->addTab(new QWidget(), QString::fromUtf8("\U0001F464 读者管理"));
-    funcTabs->addTab(new QWidget(), QString::fromUtf8("\U0001F4D6 借阅/归还"));
-    funcTabs->addTab(new QWidget(), QString::fromUtf8("\U0001F4BA 座位预约"));
-    funcTabs->addTab(new QWidget(), QString::fromUtf8("\U0001F525 热门排行"));
-    funcTabs->addTab(new QWidget(), QString::fromUtf8("\U0001F517 图书推荐"));
+
+    // Create functional tab widgets with backend linkage
+    bookTab = new BookTab(library);
+    readerTab = new ReaderTab(library);
+    borrowTab = new BorrowTab(library);
+    seatTab = new SeatTab(library);
+    hotRankTab = new HotRankTab(library);
+    recommendTab = new RecommendTab(library);
+
+    funcTabs->addTab(bookTab, QString::fromUtf8("\U0001F4DA 图书管理"));
+    funcTabs->addTab(readerTab, QString::fromUtf8("\U0001F464 读者管理"));
+    funcTabs->addTab(borrowTab, QString::fromUtf8("\U0001F4D6 借阅/归还"));
+    funcTabs->addTab(seatTab, QString::fromUtf8("\U0001F4BA 座位预约"));
+    funcTabs->addTab(hotRankTab, QString::fromUtf8("\U0001F525 热门排行"));
+    funcTabs->addTab(recommendTab, QString::fromUtf8("\U0001F517 图书推荐"));
 
     visualPanel = new VisualPanel(library, centralSplitter);
 
@@ -65,6 +84,8 @@ void MainWindow::setupMenuBar()
     fileMenu->addSeparator();
     QAction* exitAct = fileMenu->addAction(QString::fromUtf8("❌ 退出"));
     connect(exitAct, &QAction::triggered, this, &QWidget::close);
+    connect(saveAct, &QAction::triggered, this, &MainWindow::onSaveData);
+    connect(loadAct, &QAction::triggered, this, &MainWindow::onLoadData);
 
     QMenu* viewMenu = menuBar()->addMenu(QString::fromUtf8("视图"));
     QAction* toggleVisualAct = viewMenu->addAction(QString::fromUtf8("\U0001F50D 切换可视化面板"));
@@ -79,9 +100,12 @@ void MainWindow::setupMenuBar()
 
 void MainWindow::setupConnections()
 {
-    // 后续将 library 的操作信号连接到 visualPanel
-    // connect(library, &LibrarySystem::operationPerformed,
-    //         visualPanel, &VisualPanel::onOperation);
+    // Connect LibrarySystem operations to VisualPanel
+    connect(library, &LibrarySystem::operationPerformed,
+            visualPanel, &VisualPanel::onOperation);
+
+    // Auto-refresh tabs when switching
+    connect(funcTabs, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
 }
 
 void MainWindow::onLoginSuccess()
@@ -91,6 +115,67 @@ void MainWindow::onLoginSuccess()
         : QString::fromUtf8("读者");
     setWindowTitle(QString::fromUtf8("高校图书馆智能管理系统 [%1] 当前用户: %2")
                        .arg(role, currentReaderId));
+
+    // Populate sample data on first run
+    populateSampleDataIfNeeded();
+
+    // Refresh all tabs now that we have data
+    refreshAllTabs();
+}
+
+void MainWindow::onSaveData()
+{
+    QString path = QFileDialog::getSaveFileName(this, QString::fromUtf8("保存数据"),
+        "library_data.json", "JSON (*.json)");
+    if (path.isEmpty()) return;
+    if (DataPersistence::saveAll(library, path))
+        statusBar()->showMessage(QString::fromUtf8("数据已保存到: %1").arg(path), 5000);
+    else
+        QMessageBox::warning(this, QString::fromUtf8("保存失败"), QString::fromUtf8("无法写入文件"));
+}
+
+void MainWindow::onLoadData()
+{
+    QString path = QFileDialog::getOpenFileName(this, QString::fromUtf8("加载数据"),
+        "library_data.json", "JSON (*.json)");
+    if (path.isEmpty()) return;
+    if (DataPersistence::loadAll(library, path)) {
+        statusBar()->showMessage(QString::fromUtf8("数据已加载: %1").arg(path), 5000);
+        refreshAllTabs();
+        visualPanel->refreshAll();
+    } else {
+        QMessageBox::warning(this, QString::fromUtf8("加载失败"), QString::fromUtf8("无法读取文件或格式不正确"));
+    }
+}
+
+void MainWindow::onTabChanged(int index)
+{
+    // Auto-refresh the tab that was just selected
+    switch (index) {
+        case 0: bookTab->refreshTable(); break;
+        case 1: readerTab->refreshTable(); break;
+        case 2: borrowTab->refreshTable(); break;
+        case 3: seatTab->refreshGrid(); break;
+        case 4: hotRankTab->refreshRanking(); break;
+        default: break;
+    }
+}
+
+void MainWindow::populateSampleDataIfNeeded()
+{
+    if (library->getAllBooks().empty()) {
+        SeedData::populate(library);
+        qDebug() << "Sample data populated";
+    }
+}
+
+void MainWindow::refreshAllTabs()
+{
+    bookTab->refreshTable();
+    readerTab->refreshTable();
+    borrowTab->refreshTable();
+    seatTab->refreshGrid();
+    hotRankTab->refreshRanking();
 }
 
 void MainWindow::showAbout()

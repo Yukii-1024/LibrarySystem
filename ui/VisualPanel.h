@@ -18,7 +18,9 @@ public:
     void showOperation(const QString& opName,
                        const QStringList& dsUsed,
                        const QString& description);
+    void refreshAll();
 
+    // Individual refresh methods
     void refreshBST();
     void refreshHashTable();
     void refreshHeap();
@@ -27,9 +29,12 @@ public:
     void refreshQueue();
     void refreshMatrix();
 
+public slots:
+    void onOperation(const QString& opName, const QStringList& dsUsed, const QString& description);
+
 private:
     void setupUI();
-    QGraphicsView* createGraphView();
+    QGraphicsView* createViewForScene(QGraphicsScene* scene);
 
     LibrarySystem* library = nullptr;
     QLabel* operationLabel = nullptr;
@@ -43,4 +48,12 @@ private:
     QGraphicsScene* stackScene = nullptr;
     QGraphicsScene* queueScene = nullptr;
     QGraphicsScene* matrixScene = nullptr;
+
+    QGraphicsView* bstView = nullptr;
+    QGraphicsView* hashView = nullptr;
+    QGraphicsView* heapView = nullptr;
+    QGraphicsView* graphView = nullptr;
+    QGraphicsView* stackView = nullptr;
+    QGraphicsView* queueView = nullptr;
+    QGraphicsView* matrixView = nullptr;
 };

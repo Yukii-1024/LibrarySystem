@@ -3,15 +3,13 @@
 #include <QLineEdit>
 #include <QCheckBox>
 
-/**
- * 登录对话框
- * 支持读者登录和管理员登录
- */
+class LibrarySystem;
+
 class LoginDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit LoginDialog(QWidget* parent = nullptr);
+    explicit LoginDialog(LibrarySystem* lib, QWidget* parent = nullptr);
 
     bool isAdminLogin() const { return adminCheck->isChecked(); }
     QString getReaderId() const { return idEdit->text(); }
@@ -24,6 +22,7 @@ private slots:
 private:
     void setupUI();
 
+    LibrarySystem* library = nullptr;
     QLineEdit* idEdit = nullptr;
     QLineEdit* pwdEdit = nullptr;
     QCheckBox* adminCheck = nullptr;
