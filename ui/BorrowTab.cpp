@@ -8,6 +8,8 @@
 #include <QPushButton>
 #include <QHeaderView>
 #include <QMessageBox>
+#include <QDialog>
+#include <QDialogButtonBox>
 
 BorrowTab::BorrowTab(LibrarySystem* lib, QWidget* parent)
     : QWidget(parent), library(lib) { setupUI(); refreshTable(); }
@@ -44,7 +46,8 @@ void BorrowTab::setupUI()
     resIsbnEdit->setPlaceholderText("ISBN");
     resHL->addWidget(resIsbnEdit);
     auto* resBtn = new QPushButton(QString::fromUtf8("加入预约队列"));
-    resHL->addWidget(resBtn);
+    auto* showQBtn = new QPushButton(QString::fromUtf8("查看排队情况"));
+    resHL->addWidget(resBtn); resHL->addWidget(showQBtn);
     resHL->addStretch();
     main->addWidget(resBox);
 
@@ -63,6 +66,7 @@ void BorrowTab::setupUI()
     connect(returnBtn, &QPushButton::clicked, this, &BorrowTab::onReturn);
     connect(undoBtn, &QPushButton::clicked, this, &BorrowTab::onUndo);
     connect(resBtn, &QPushButton::clicked, this, &BorrowTab::onReserve);
+    connect(showQBtn, &QPushButton::clicked, this, &BorrowTab::onShowQueues);
     connect(readerEdit, &QLineEdit::textChanged, this, &BorrowTab::checkStatus);
     connect(isbnEdit, &QLineEdit::textChanged, this, &BorrowTab::checkStatus);
 }
@@ -113,6 +117,47 @@ void BorrowTab::onReserve()
     else if (st == Status::Invalid) QMessageBox::information(this, QString::fromUtf8("提示"), QString::fromUtf8("该书尚有库存，无需排队"));
     else statusLabel->setText(QString::fromUtf8("已加入预约队列"));
     refreshTable();
+}
+
+void BorrowTab::onShowQueues()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle(QString::fromUtf8("预约排队情况"));
+    dlg.resize(500, 350);
+
+    auto* layout = new QVBoxLayout(&dlg);
+    auto* label = new QLabel(QString::fromUtf8("以下为所有图书的预约队列："), &dlg);
+    layout->addWidget(label);
+
+    auto* qTable = new QTableWidget(0, 3, &dlg);
+    qTable->setHorizontalHeaderLabels({
+        "ISBN", QString::fromUtf8("书名"), QString::fromUtf8("排队读者数")
+    });
+    qTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    qTable->horizontalHeader()->setStretchLastSection(true);
+    qTable->setAlternatingRowColors(true);
+    layout->addWidget(qTable);
+
+    const auto& queues = library->getReservationQueues();
+    for (const auto& pair : queues) {
+        const std::string& isbn = pair.first;
+        const Queue<QString>& q = pair.second;
+        int row = qTable->rowCount();
+        qTable->insertRow(row);
+        qTable->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(isbn)));
+
+        Book* b = library->findByISBN(QString::fromStdString(isbn));
+        qTable->setItem(row, 1, new QTableWidgetItem(
+            b ? QString::fromStdString(b->title) : QString::fromUtf8("未知")));
+        qTable->setItem(row, 2, new QTableWidgetItem(QString::number(q.size())));
+    }
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
+    buttons->button(QDialogButtonBox::Close)->setText(QString::fromUtf8("关闭"));
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    dlg.exec();
 }
 
 void BorrowTab::checkStatus()

@@ -4,6 +4,7 @@
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QLabel>
+#include <QPushButton>
 
 class LibrarySystem;
 
@@ -16,6 +17,7 @@ public:
 private slots:
     void onAdd();
     void onDelete();
+    void onEdit();
     void onSearch();
     void onRangeQuery();
 
@@ -33,4 +35,7 @@ private:
     QLineEdit* rangeHighEdit;
     QTableWidget* table;
     QLabel* statusLabel;
+    QPushButton* addBtn;
+    QPushButton* editBtn;
+    QString editingISBN; // 非空表示正在编辑该ISBN的图书
 };

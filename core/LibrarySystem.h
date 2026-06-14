@@ -39,6 +39,9 @@ public:
     // ---- 图书管理（BST + LinkedList + HashTable）----
     Status addBook(Book* book);
     Status removeBook(const QString& isbn);
+    Status updateBook(const QString& isbn, const QString& newTitle,
+                      const QString& newAuthor, const QString& newPublisher,
+                      int newTotalStock);
     Book* findByISBN(const QString& isbn) const;
     Book* findByCallNumber(const QString& callNum) const;
     std::vector<Book*> rangeQuery(const QString& low, const QString& high) const;
@@ -47,6 +50,8 @@ public:
     // ---- 读者管理（HashTable）----
     Status addReader(Reader* reader);
     Status removeReader(const QString& id);
+    Status updateReader(const QString& id, const QString& newName,
+                        const QString& newDept, const QString& newPwd = QString());
     Reader* findReader(const QString& id) const;
     bool verifyLogin(const QString& id, const QString& pwd, bool& isAdmin) const;
 
@@ -78,6 +83,7 @@ public:
     BST<Book, std::function<std::string(Book*)>>& getBookBST() { return *bookBST; }
     HashTable<Reader, std::function<std::string(Reader*)>>& getReaderHash() { return *readerHash; }
     HashTable<Book, std::function<std::string(Book*)>>& getBookTitleHash() { return *bookTitleHash; }
+    HashTable<Book, std::function<std::string(Book*)>>& getBookISBNHash() { return *bookISBNHash; }
     Graph& getRecommendationGraph() { return recommendationGraph; }
     MaxHeap<Book, std::function<int(Book*)>>& getHotHeap() { return *hotHeap; }
     SparseMatrix<Seat>& getSeatMatrix() { return seatMatrix; }
@@ -102,6 +108,7 @@ private:
     BST<Book, std::function<std::string(Book*)>>* bookBST = nullptr;           // 索书号索引（BST）
     HashTable<Reader, std::function<std::string(Reader*)>>* readerHash = nullptr; // 读者索引（哈希表）
     HashTable<Book, std::function<std::string(Book*)>>* bookTitleHash = nullptr;  // 书名索引（哈希表）
+    HashTable<Book, std::function<std::string(Book*)>>* bookISBNHash = nullptr;   // ISBN索引（哈希表）
 
     // 推荐与排行
     Graph recommendationGraph;                  // 图书推荐图（图）

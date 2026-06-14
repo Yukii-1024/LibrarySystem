@@ -1,3 +1,4 @@
+
 @echo off
 REM Build script for LibrarySystem
 REM Uses MinGW GCC 11.5.0 MSVCRT (compatible with Qt 6.8.2)
