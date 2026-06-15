@@ -115,4 +115,5 @@ void SeatTab::refreshGrid()
         }
     }
     statusLabel->setText(QString::fromUtf8("座位分布图 (绿色=空闲, 红色=已占用)"));
+    emit gridRefreshed();
 }

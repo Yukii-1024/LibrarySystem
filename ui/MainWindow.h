@@ -20,18 +20,22 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
 private slots:
     void onLoginSuccess();
     void showAbout();
-    void onSaveData();
-    void onLoadData();
+    void onSaveChanges();
+    void onDiscardChanges();
     void onTabChanged(int index);
+    void markDirty();
 
 private:
     void setupUI();
     void setupMenuBar();
     void setupConnections();
-    void populateSampleDataIfNeeded();
+    void loadFromDatabase();
     void refreshAllTabs();
 
     QSplitter* centralSplitter = nullptr;
@@ -48,4 +52,5 @@ private:
 
     bool isAdmin = false;
     QString currentReaderId;
+    bool dirty = false;
 };

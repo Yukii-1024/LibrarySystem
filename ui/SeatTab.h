@@ -14,6 +14,9 @@ public:
     explicit SeatTab(LibrarySystem* lib, QWidget* parent = nullptr);
     void refreshGrid();
 
+signals:
+    void gridRefreshed();
+
 private slots:
     void onReserve();
     void onRelease();

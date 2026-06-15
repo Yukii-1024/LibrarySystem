@@ -92,6 +92,9 @@ public:
     void setNextRecordId(int id) { nextRecordId = id; }
     int getNextRecordId() const { return nextRecordId; }
 
+    /// Recreate index structures (BST, HashTable, Heap) after clearing data.
+    void resetStructures();
+
 signals:
     void operationPerformed(const QString& opName,
                             const QStringList& dsUsed,

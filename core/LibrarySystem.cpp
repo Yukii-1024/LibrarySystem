@@ -29,6 +29,32 @@ LibrarySystem::~LibrarySystem()
     delete hotHeap;
 }
 
+void LibrarySystem::resetStructures()
+{
+    // Delete and recreate index structures
+    delete bookBST;
+    delete readerHash;
+    delete bookTitleHash;
+    delete bookISBNHash;
+    delete hotHeap;
+
+    bookBST = new BST<Book, std::function<std::string(Book*)>>(
+        [](Book* b) { return b ? b->callNumber : ""; });
+    readerHash = new HashTable<Reader, std::function<std::string(Reader*)>>(
+        64, [](Reader* r) { return r ? r->id : ""; });
+    bookTitleHash = new HashTable<Book, std::function<std::string(Book*)>>(
+        64, [](Book* b) { return b ? b->title : ""; });
+    bookISBNHash = new HashTable<Book, std::function<std::string(Book*)>>(
+        64, [](Book* b) { return b ? b->isbn : ""; });
+    hotHeap = new MaxHeap<Book, std::function<int(Book*)>>(
+        [](Book* b) { return b ? b->borrowCount : 0; });
+
+    recommendationGraph.clear();
+    seatMatrix.clear();
+    reservationQueues.clear();
+    nextRecordId = 1;
+}
+
 // ---- 图书管理 ----
 Status LibrarySystem::addBook(Book* book)
 {

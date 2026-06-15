@@ -13,7 +13,7 @@ if(WIN32 AND MSVC)
 endif()
 
 # 查找 Qt（优先 Qt6，回退 Qt5）
-find_package(Qt6 QUIET COMPONENTS Core Widgets Gui)
+find_package(Qt6 QUIET COMPONENTS Core Widgets Gui Sql)
 if(NOT Qt6_FOUND)
     find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui)
     set(QT_VERSION_MAJOR 5)
@@ -33,7 +33,6 @@ set(SOURCES
     ui/HotRankTab.cpp
     ui/RecommendTab.cpp
     core/LibrarySystem.cpp
-    core/SeedData.cpp
     persistence/DataPersistence.cpp
     utils/Logger.cpp
 )
@@ -62,7 +61,6 @@ set(HEADERS
     ui/HotRankTab.h
     ui/RecommendTab.h
     core/LibrarySystem.h
-    core/SeedData.h
     persistence/DataPersistence.h
     utils/Logger.h
 )
@@ -84,6 +82,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt::Core
     Qt::Widgets
     Qt::Gui
+    Qt::Sql
 )
 
 # Windows 控制台输出（调试用）

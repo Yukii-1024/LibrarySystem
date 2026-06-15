@@ -1,194 +1,307 @@
 #include "DataPersistence.h"
+#include "core/LibrarySystem.h"
 #include "model/Book.h"
 #include "model/Reader.h"
 #include "model/BorrowRecord.h"
 #include "model/Seat.h"
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QFileInfo>
+#include <QDebug>
 
-bool DataPersistence::saveAll(LibrarySystem* sys, const QString& filePath)
+QString DataPersistence::dbPath_;
+
+// ── init / create tables ──────────────────────────────────
+
+bool DataPersistence::initDatabase(const QString& dbPath)
 {
-    if (!sys) return false;
-
-    QJsonObject root;
-    root["version"] = 1;
-    int maxRecordId = 0;
-
-    // --- Books ---
-    QJsonArray booksArr;
-    sys->getBookList().traverse([&](Book*& b) {
-        if (!b) return;
-        QJsonObject obj;
-        obj["isbn"]        = QString::fromStdString(b->isbn);
-        obj["callNumber"]  = QString::fromStdString(b->callNumber);
-        obj["title"]       = QString::fromStdString(b->title);
-        obj["author"]      = QString::fromStdString(b->author);
-        obj["publisher"]   = QString::fromStdString(b->publisher);
-        obj["totalStock"]  = b->totalStock;
-        obj["availableStock"] = b->availableStock;
-        obj["borrowCount"] = b->borrowCount;
-        booksArr.append(obj);
-    });
-    root["books"] = booksArr;
-
-    // --- Readers ---
-    QJsonArray readersArr;
-    sys->getReaderList().traverse([&](Reader*& r) {
-        if (!r) return;
-        QJsonObject obj;
-        obj["id"]           = QString::fromStdString(r->id);
-        obj["password"]     = QString::fromStdString(r->password);
-        obj["name"]         = QString::fromStdString(r->name);
-        obj["department"]   = QString::fromStdString(r->department);
-        obj["maxBorrow"]    = r->maxBorrow;
-        obj["currentBorrow"] = r->currentBorrow;
-        obj["isAdmin"]      = r->isAdmin;
-        obj["active"]       = r->active;
-        readersArr.append(obj);
-    });
-    root["readers"] = readersArr;
-
-    // --- Borrow Records ---
-    QJsonArray recordsArr;
-    sys->getBorrowRecords().traverse([&](BorrowRecord*& br) {
-        if (!br) return;
-        QJsonObject obj;
-        obj["recordId"]   = static_cast<int>(br->recordId);
-        obj["readerId"]   = QString::fromStdString(br->readerId);
-        obj["bookISBN"]   = QString::fromStdString(br->bookISBN);
-        obj["borrowTime"] = QString::fromStdString(br->borrowTime);
-        obj["returnTime"] = QString::fromStdString(br->returnTime);
-        obj["returned"]   = br->returned;
-        recordsArr.append(obj);
-        if (static_cast<int>(br->recordId) > maxRecordId)
-            maxRecordId = static_cast<int>(br->recordId);
-    });
-    root["borrowRecords"] = recordsArr;
-    root["nextRecordId"] = maxRecordId + 1;
-
-    // --- Seats ---
-    QJsonArray seatsArr;
-    sys->getSeatMatrix().traverseNonZero([&](int row, int col, const Seat& s) {
-        QJsonObject obj;
-        obj["row"]       = row;
-        obj["col"]       = col;
-        obj["status"]    = static_cast<int>(s.status);
-        obj["readerId"]  = QString::fromStdString(s.readerId);
-        obj["startTime"] = QString::fromStdString(s.startTime);
-        obj["endTime"]   = QString::fromStdString(s.endTime);
-        seatsArr.append(obj);
-    });
-    root["seats"] = seatsArr;
-
-    // --- Reservation Queues ---
-    QJsonArray resArr;
-    const auto& queues = sys->getReservationQueues();
-    for (const auto& pair : queues) {
-        QJsonObject obj;
-        obj["isbn"] = QString::fromStdString(pair.first);
-        QJsonArray qArr;
-        pair.second.traverse([&](const QString& readerId) {
-            qArr.append(readerId);
-        });
-        obj["queue"] = qArr;
-        resArr.append(obj);
-    }
-    root["reservations"] = resArr;
-
-    // Write
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    dbPath_ = dbPath;
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+    db.setDatabaseName(dbPath);
+    if (!db.open()) {
+        qWarning() << "Cannot open database:" << db.lastError().text();
         return false;
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    file.close();
+    }
+    createTables();
+
+    // Bootstrap: ensure there is at least one admin account
+    QSqlQuery q;
+    q.exec("SELECT COUNT(*) FROM readers");
+    if (q.next() && q.value(0).toInt() == 0) {
+        q.exec("INSERT INTO readers VALUES ('admin','admin123','Administrator','',10,0,1,1)");
+        qDebug() << "Bootstrap admin account created";
+    }
+
     return true;
 }
 
-bool DataPersistence::loadAll(LibrarySystem* sys, const QString& filePath)
+void DataPersistence::createTables()
+{
+    QSqlQuery q;
+    q.exec(
+        "CREATE TABLE IF NOT EXISTS books ("
+        " isbn TEXT PRIMARY KEY,"
+        " call_number TEXT NOT NULL,"
+        " title TEXT NOT NULL,"
+        " author TEXT DEFAULT '',"
+        " publisher TEXT DEFAULT '',"
+        " total_stock INTEGER DEFAULT 1,"
+        " available_stock INTEGER DEFAULT 1,"
+        " borrow_count INTEGER DEFAULT 0"
+        ")"
+    );
+    q.exec(
+        "CREATE TABLE IF NOT EXISTS readers ("
+        " id TEXT PRIMARY KEY,"
+        " password TEXT NOT NULL,"
+        " name TEXT NOT NULL,"
+        " department TEXT DEFAULT '',"
+        " max_borrow INTEGER DEFAULT 10,"
+        " current_borrow INTEGER DEFAULT 0,"
+        " is_admin INTEGER DEFAULT 0,"
+        " active INTEGER DEFAULT 1"
+        ")"
+    );
+    q.exec(
+        "CREATE TABLE IF NOT EXISTS borrow_records ("
+        " record_id INTEGER PRIMARY KEY,"
+        " reader_id TEXT NOT NULL,"
+        " book_isbn TEXT NOT NULL,"
+        " borrow_time TEXT DEFAULT '',"
+        " return_time TEXT DEFAULT '',"
+        " returned INTEGER DEFAULT 0"
+        ")"
+    );
+    q.exec(
+        "CREATE TABLE IF NOT EXISTS seats ("
+        " row_idx INTEGER,"
+        " col_idx INTEGER,"
+        " status INTEGER DEFAULT 0,"
+        " reader_id TEXT DEFAULT '',"
+        " start_time TEXT DEFAULT '',"
+        " end_time TEXT DEFAULT '',"
+        " PRIMARY KEY (row_idx, col_idx)"
+        ")"
+    );
+    q.exec(
+        "CREATE TABLE IF NOT EXISTS reservations ("
+        " isbn TEXT NOT NULL,"
+        " reader_id TEXT NOT NULL,"
+        " position INTEGER NOT NULL,"
+        " PRIMARY KEY (isbn, reader_id)"
+        ")"
+    );
+}
+
+// ── save ──────────────────────────────────────────────────
+
+bool DataPersistence::saveAll(LibrarySystem* sys)
 {
     if (!sys) return false;
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.isOpen()) return false;
 
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return false;
-    QByteArray data = file.readAll();
-    file.close();
+    db.transaction();
 
-    QJsonParseError err;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject())
-        return false;
-
-    QJsonObject root = doc.object();
+    // Clear existing rows
+    QSqlQuery q;
+    q.exec("DELETE FROM books");
+    q.exec("DELETE FROM readers");
+    q.exec("DELETE FROM borrow_records");
+    q.exec("DELETE FROM seats");
+    q.exec("DELETE FROM reservations");
 
     // Books
-    for (const auto& val : root["books"].toArray()) {
-        QJsonObject o = val.toObject();
+    q.prepare("INSERT INTO books VALUES (?,?,?,?,?,?,?,?)");
+    sys->getBookList().traverse([&](Book*& b) {
+        if (!b) return;
+        q.addBindValue(QString::fromStdString(b->isbn));
+        q.addBindValue(QString::fromStdString(b->callNumber));
+        q.addBindValue(QString::fromStdString(b->title));
+        q.addBindValue(QString::fromStdString(b->author));
+        q.addBindValue(QString::fromStdString(b->publisher));
+        q.addBindValue(b->totalStock);
+        q.addBindValue(b->availableStock);
+        q.addBindValue(b->borrowCount);
+        q.exec();
+    });
+
+    // Readers
+    q.prepare("INSERT INTO readers VALUES (?,?,?,?,?,?,?,?)");
+    sys->getReaderList().traverse([&](Reader*& r) {
+        if (!r) return;
+        q.addBindValue(QString::fromStdString(r->id));
+        q.addBindValue(QString::fromStdString(r->password));
+        q.addBindValue(QString::fromStdString(r->name));
+        q.addBindValue(QString::fromStdString(r->department));
+        q.addBindValue(r->maxBorrow);
+        q.addBindValue(r->currentBorrow);
+        q.addBindValue(r->isAdmin ? 1 : 0);
+        q.addBindValue(r->active ? 1 : 0);
+        q.exec();
+    });
+
+    // Borrow records
+    q.prepare("INSERT INTO borrow_records VALUES (?,?,?,?,?,?)");
+    sys->getBorrowRecords().traverse([&](BorrowRecord*& br) {
+        if (!br) return;
+        q.addBindValue(static_cast<int>(br->recordId));
+        q.addBindValue(QString::fromStdString(br->readerId));
+        q.addBindValue(QString::fromStdString(br->bookISBN));
+        q.addBindValue(QString::fromStdString(br->borrowTime));
+        q.addBindValue(QString::fromStdString(br->returnTime));
+        q.addBindValue(br->returned ? 1 : 0);
+        q.exec();
+    });
+
+    // Seats
+    q.prepare("INSERT INTO seats VALUES (?,?,?,?,?,?)");
+    sys->getSeatMatrix().traverseNonZero([&](int r, int c, const Seat& s) {
+        q.addBindValue(r);
+        q.addBindValue(c);
+        q.addBindValue(static_cast<int>(s.status));
+        q.addBindValue(QString::fromStdString(s.readerId));
+        q.addBindValue(QString::fromStdString(s.startTime));
+        q.addBindValue(QString::fromStdString(s.endTime));
+        q.exec();
+    });
+
+    // Reservations
+    q.prepare("INSERT INTO reservations VALUES (?,?,?)");
+    const auto& queues = sys->getReservationQueues();
+    for (const auto& [isbn, qu] : queues) {
+        int pos = 0;
+        qu.traverse([&](const QString& readerId) {
+            q.addBindValue(QString::fromStdString(isbn));
+            q.addBindValue(readerId);
+            q.addBindValue(pos++);
+            q.exec();
+        });
+    }
+
+    db.commit();
+    qDebug() << "Data saved to" << dbPath_;
+    return true;
+}
+
+// ── load ──────────────────────────────────────────────────
+
+void DataPersistence::clearAll(LibrarySystem* sys)
+{
+    // Remove all data from in-memory structures
+    sys->getBookList().traverse([](Book*& b) { delete b; });
+    sys->getBookList().clear();
+
+    sys->getReaderList().traverse([](Reader*& r) { delete r; });
+    sys->getReaderList().clear();
+
+    sys->getBorrowRecords().traverse([](BorrowRecord*& br) { delete br; });
+    sys->getBorrowRecords().clear();
+
+    sys->getUndoStack().clear();
+
+    sys->getRecommendationGraph().clear();
+    sys->getSeatMatrix().clear();
+    sys->getReservationQueuesRef().clear();
+
+    // Recreate structures
+    sys->resetStructures();
+    sys->setNextRecordId(1);
+}
+
+bool DataPersistence::loadAll(LibrarySystem* sys)
+{
+    if (!sys) return false;
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.isOpen()) return false;
+
+    clearAll(sys);
+
+    QSqlQuery q;
+
+    // Books
+    q.exec("SELECT * FROM books");
+    while (q.next()) {
         auto* b = new Book(
-            o["isbn"].toString().toStdString(),
-            o["callNumber"].toString().toStdString(),
-            o["title"].toString().toStdString(),
-            o["author"].toString().toStdString(),
-            o["publisher"].toString().toStdString(),
-            o["totalStock"].toInt()
+            q.value("isbn").toString().toStdString(),
+            q.value("call_number").toString().toStdString(),
+            q.value("title").toString().toStdString(),
+            q.value("author").toString().toStdString(),
+            q.value("publisher").toString().toStdString(),
+            q.value("total_stock").toInt()
         );
-        b->availableStock = o["availableStock"].toInt();
-        b->borrowCount    = o["borrowCount"].toInt();
+        b->availableStock = q.value("available_stock").toInt();
+        b->borrowCount    = q.value("borrow_count").toInt();
         sys->addBook(b);
     }
 
     // Readers
-    for (const auto& val : root["readers"].toArray()) {
-        QJsonObject o = val.toObject();
+    q.exec("SELECT * FROM readers");
+    while (q.next()) {
         auto* r = new Reader(
-            o["id"].toString().toStdString(),
-            o["password"].toString().toStdString(),
-            o["name"].toString().toStdString(),
-            o["department"].toString().toStdString(),
-            o["isAdmin"].toBool()
+            q.value("id").toString().toStdString(),
+            q.value("password").toString().toStdString(),
+            q.value("name").toString().toStdString(),
+            q.value("department").toString().toStdString(),
+            q.value("is_admin").toBool()
         );
-        r->maxBorrow     = o["maxBorrow"].toInt(10);
-        r->currentBorrow = o["currentBorrow"].toInt();
-        r->active        = o["active"].toBool(true);
+        r->maxBorrow     = q.value("max_borrow").toInt();
+        r->currentBorrow = q.value("current_borrow").toInt();
+        r->active        = q.value("active").toBool();
         sys->addReader(r);
     }
 
-    // Borrow Records
-    for (const auto& val : root["borrowRecords"].toArray()) {
-        QJsonObject o = val.toObject();
+    // Borrow records
+    int maxId = 0;
+    q.exec("SELECT * FROM borrow_records");
+    while (q.next()) {
         auto* br = new BorrowRecord();
-        br->recordId  = static_cast<unsigned int>(o["recordId"].toInt());
-        br->readerId  = o["readerId"].toString().toStdString();
-        br->bookISBN  = o["bookISBN"].toString().toStdString();
-        br->borrowTime = o["borrowTime"].toString().toStdString();
-        br->returnTime = o["returnTime"].toString().toStdString();
-        br->returned  = o["returned"].toBool();
+        int id = q.value("record_id").toInt();
+        br->recordId   = static_cast<unsigned int>(id);
+        br->readerId   = q.value("reader_id").toString().toStdString();
+        br->bookISBN   = q.value("book_isbn").toString().toStdString();
+        br->borrowTime = q.value("borrow_time").toString().toStdString();
+        br->returnTime = q.value("return_time").toString().toStdString();
+        br->returned   = q.value("returned").toBool();
         sys->getBorrowRecords().append(br);
+        if (id > maxId) maxId = id;
     }
+    sys->setNextRecordId(maxId + 1);
 
     // Seats
-    for (const auto& val : root["seats"].toArray()) {
-        QJsonObject o = val.toObject();
+    q.exec("SELECT * FROM seats");
+    while (q.next()) {
         Seat s;
-        s.row       = o["row"].toInt();
-        s.col       = o["col"].toInt();
-        s.status    = static_cast<SeatStatus>(o["status"].toInt());
-        s.readerId  = o["readerId"].toString().toStdString();
-        s.startTime = o["startTime"].toString().toStdString();
-        s.endTime   = o["endTime"].toString().toStdString();
+        s.row       = q.value("row_idx").toInt();
+        s.col       = q.value("col_idx").toInt();
+        s.status    = static_cast<SeatStatus>(q.value("status").toInt());
+        s.readerId  = q.value("reader_id").toString().toStdString();
+        s.startTime = q.value("start_time").toString().toStdString();
+        s.endTime   = q.value("end_time").toString().toStdString();
         sys->getSeatMatrix().set(s.row, s.col, s);
     }
 
-    // Reservation Queues
-    for (const auto& val : root["reservations"].toArray()) {
-        QJsonObject o = val.toObject();
-        std::string isbn = o["isbn"].toString().toStdString();
-        for (const auto& qv : o["queue"].toArray())
-            sys->getReservationQueuesRef()[isbn].enqueue(qv.toString());
+    // Reservations
+    q.exec("SELECT * FROM reservations ORDER BY isbn, position");
+    while (q.next()) {
+        std::string isbn = q.value("isbn").toString().toStdString();
+        QString readerId = q.value("reader_id").toString();
+        sys->getReservationQueuesRef()[isbn].enqueue(readerId);
     }
 
-    sys->setNextRecordId(root["nextRecordId"].toInt(1));
+    qDebug() << "Data loaded from" << dbPath_;
     return true;
+}
+
+// ── helpers ────────────────────────────────────────────────
+
+void DataPersistence::close()
+{
+    QSqlDatabase::database().close();
+}
+
+QString DataPersistence::currentPath()
+{
+    return dbPath_;
 }
