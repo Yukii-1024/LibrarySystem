@@ -12,6 +12,9 @@ class RecommendTab : public QWidget {
 public:
     explicit RecommendTab(LibrarySystem* lib, QWidget* parent = nullptr);
 
+signals:
+    void graphRefreshed();
+
 private slots:
     void onRecommend();
 

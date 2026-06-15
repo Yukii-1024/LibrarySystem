@@ -59,4 +59,5 @@ void RecommendTab::onRecommend()
     statusLabel->setText(recs.empty()
         ? QString::fromUtf8("无推荐结果 — 该书未被与其他图书共同借阅过")
         : QString::fromUtf8("找到 %1 条推荐").arg(recs.size()));
+    emit graphRefreshed();
 }

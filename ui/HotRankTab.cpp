@@ -56,4 +56,5 @@ void HotRankTab::refreshRanking()
         table->setItem(row, 4, new QTableWidgetItem(QString::number(b->borrowCount)));
     }
     statusLabel->setText(QString::fromUtf8("底层数据结构: 最大堆 (MaxHeap) — 前 %1 名已显示").arg(hot.size()));
+    emit heapRefreshed();
 }

@@ -12,6 +12,9 @@ public:
     explicit HotRankTab(LibrarySystem* lib, QWidget* parent = nullptr);
     void refreshRanking();
 
+signals:
+    void heapRefreshed();
+
 private:
     void setupUI();
     LibrarySystem* library;

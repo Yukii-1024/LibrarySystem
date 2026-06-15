@@ -1,11 +1,13 @@
 #pragma once
 #include <QWidget>
-#include <QTabWidget>
+#include <QSplitter>
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QLabel>
 #include <QTextEdit>
 #include <QVBoxLayout>
+#include <QMap>
+#include <QScrollArea>
 
 class LibrarySystem;
 
@@ -20,7 +22,6 @@ public:
                        const QString& description);
     void refreshAll();
 
-    // Individual refresh methods
     void refreshBST();
     void refreshHashTable();
     void refreshHeap();
@@ -35,12 +36,17 @@ public slots:
 private:
     void setupUI();
     QGraphicsView* createViewForScene(QGraphicsScene* scene);
+    QWidget* createDSPane(const QString& title, QGraphicsView* view);
+    void showDSPanes(const QStringList& dsUsed);
 
     LibrarySystem* library = nullptr;
     QLabel* operationLabel = nullptr;
     QTextEdit* descriptionText = nullptr;
-    QTabWidget* dsTabs = nullptr;
+    QSplitter* dsSplitter = nullptr;
+    QWidget* welcomePane = nullptr;
+    QMap<QString, QWidget*> dsPanes;   // key -> pane widget
 
+    // Scenes and views (created once)
     QGraphicsScene* bstScene = nullptr;
     QGraphicsScene* hashScene = nullptr;
     QGraphicsScene* heapScene = nullptr;

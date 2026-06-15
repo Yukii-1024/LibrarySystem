@@ -7,7 +7,6 @@
 #include "SeatTab.h"
 #include "HotRankTab.h"
 #include "RecommendTab.h"
-#include "core/SeedData.h"
 #include "persistence/DataPersistence.h"
 #include <QSplitter>
 #include <QTabWidget>
@@ -17,13 +16,21 @@
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QApplication>
-#include <QFileDialog>
+#include <QCloseEvent>
 #include <QDebug>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , library(new LibrarySystem(this))
 {
+    // Init SQLite and load data (DB next to exe)
+    QString dbPath = QCoreApplication::applicationDirPath() + "/library.db";
+    if (!DataPersistence::initDatabase(dbPath))
+        qWarning() << "Failed to init database";
+    else
+        qDebug() << "Database ready:" << dbPath;
+    loadFromDatabase();
+
     setWindowTitle(QString::fromUtf8("高校图书馆智能管理系统 - 请登录"));
     resize(1400, 900);
 
@@ -43,13 +50,34 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() = default;
 
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    if (dirty) {
+        QMessageBox::StandardButton btn = QMessageBox::question(this,
+            QString::fromUtf8("未保存的修改"),
+            QString::fromUtf8("你有未保存的修改，是否在退出前保存？"),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+
+        if (btn == QMessageBox::Save) {
+            DataPersistence::saveAll(library);
+            event->accept();
+        } else if (btn == QMessageBox::Discard) {
+            event->accept();
+        } else {
+            event->ignore();
+            return;
+        }
+    }
+    DataPersistence::close();
+    event->accept();
+}
+
 void MainWindow::setupUI()
 {
     centralSplitter = new QSplitter(Qt::Horizontal, this);
 
     funcTabs = new QTabWidget(centralSplitter);
 
-    // Create functional tab widgets with backend linkage
     bookTab = new BookTab(library);
     readerTab = new ReaderTab(library);
     borrowTab = new BorrowTab(library);
@@ -78,21 +106,24 @@ void MainWindow::setupUI()
 
 void MainWindow::setupMenuBar()
 {
+    // ── 文件 ──
     QMenu* fileMenu = menuBar()->addMenu(QString::fromUtf8("文件"));
-    QAction* saveAct = fileMenu->addAction(QString::fromUtf8("\U0001F4BE 保存数据"));
-    QAction* loadAct = fileMenu->addAction(QString::fromUtf8("\U0001F4C2 加载数据"));
+    QAction* saveAct = fileMenu->addAction(QString::fromUtf8("\U0001F4BE 保存修改"));
+    QAction* discardAct = fileMenu->addAction(QString::fromUtf8("\U0001F504 放弃修改"));
     fileMenu->addSeparator();
     QAction* exitAct = fileMenu->addAction(QString::fromUtf8("❌ 退出"));
+    connect(saveAct, &QAction::triggered, this, &MainWindow::onSaveChanges);
+    connect(discardAct, &QAction::triggered, this, &MainWindow::onDiscardChanges);
     connect(exitAct, &QAction::triggered, this, &QWidget::close);
-    connect(saveAct, &QAction::triggered, this, &MainWindow::onSaveData);
-    connect(loadAct, &QAction::triggered, this, &MainWindow::onLoadData);
 
+    // ── 视图 ──
     QMenu* viewMenu = menuBar()->addMenu(QString::fromUtf8("视图"));
     QAction* toggleVisualAct = viewMenu->addAction(QString::fromUtf8("\U0001F50D 切换可视化面板"));
     toggleVisualAct->setCheckable(true);
     toggleVisualAct->setChecked(true);
     connect(toggleVisualAct, &QAction::toggled, visualPanel, &QWidget::setVisible);
 
+    // ── 帮助 ──
     QMenu* helpMenu = menuBar()->addMenu(QString::fromUtf8("帮助"));
     QAction* aboutAct = helpMenu->addAction(QString::fromUtf8("关于"));
     connect(aboutAct, &QAction::triggered, this, &MainWindow::showAbout);
@@ -100,12 +131,40 @@ void MainWindow::setupMenuBar()
 
 void MainWindow::setupConnections()
 {
-    // Connect LibrarySystem operations to VisualPanel
     connect(library, &LibrarySystem::operationPerformed,
             visualPanel, &VisualPanel::onOperation);
-
-    // Auto-refresh tabs when switching
+    connect(library, &LibrarySystem::operationPerformed,
+            this, &MainWindow::markDirty);
     connect(funcTabs, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
+
+    // Connect read-only tabs to their data structure visualizations
+    connect(hotRankTab, &HotRankTab::heapRefreshed, this, [this]() {
+        visualPanel->onOperation(QString::fromUtf8("刷新热门排行"),
+            QStringList() << QString::fromUtf8("堆"),
+            QString::fromUtf8("基于最大堆获取借阅次数最多的图书"));
+    });
+    connect(recommendTab, &RecommendTab::graphRefreshed, this, [this]() {
+        visualPanel->onOperation(QString::fromUtf8("图书推荐查询"),
+            QStringList() << QString::fromUtf8("图"),
+            QString::fromUtf8("基于图的邻接表获取共同借阅推荐"));
+    });
+    connect(seatTab, &SeatTab::gridRefreshed, this, [this]() {
+        visualPanel->onOperation(QString::fromUtf8("刷新座位"),
+            QStringList() << QString::fromUtf8("矩阵"),
+            QString::fromUtf8("基于稀疏矩阵展示座位分布"));
+    });
+}
+
+void MainWindow::markDirty()
+{
+    dirty = true;
+    statusBar()->showMessage(QString::fromUtf8("⚡ 有未保存的修改"), 0);
+}
+
+void MainWindow::loadFromDatabase()
+{
+    if (DataPersistence::loadAll(library))
+        qDebug() << "Data loaded from database";
 }
 
 void MainWindow::onLoginSuccess()
@@ -116,41 +175,40 @@ void MainWindow::onLoginSuccess()
     setWindowTitle(QString::fromUtf8("高校图书馆智能管理系统 [%1] 当前用户: %2")
                        .arg(role, currentReaderId));
 
-    // Populate sample data on first run
-    populateSampleDataIfNeeded();
-
-    // Refresh all tabs now that we have data
     refreshAllTabs();
 }
 
-void MainWindow::onSaveData()
+void MainWindow::onSaveChanges()
 {
-    QString path = QFileDialog::getSaveFileName(this, QString::fromUtf8("保存数据"),
-        "library_data.json", "JSON (*.json)");
-    if (path.isEmpty()) return;
-    if (DataPersistence::saveAll(library, path))
-        statusBar()->showMessage(QString::fromUtf8("数据已保存到: %1").arg(path), 5000);
-    else
-        QMessageBox::warning(this, QString::fromUtf8("保存失败"), QString::fromUtf8("无法写入文件"));
+    if (DataPersistence::saveAll(library)) {
+        dirty = false;
+        statusBar()->showMessage(QString::fromUtf8("✓ 已保存到数据库"), 5000);
+    } else {
+        QMessageBox::warning(this, QString::fromUtf8("保存失败"),
+                             QString::fromUtf8("无法写入数据库"));
+    }
 }
 
-void MainWindow::onLoadData()
+void MainWindow::onDiscardChanges()
 {
-    QString path = QFileDialog::getOpenFileName(this, QString::fromUtf8("加载数据"),
-        "library_data.json", "JSON (*.json)");
-    if (path.isEmpty()) return;
-    if (DataPersistence::loadAll(library, path)) {
-        statusBar()->showMessage(QString::fromUtf8("数据已加载: %1").arg(path), 5000);
-        refreshAllTabs();
-        visualPanel->refreshAll();
-    } else {
-        QMessageBox::warning(this, QString::fromUtf8("加载失败"), QString::fromUtf8("无法读取文件或格式不正确"));
-    }
+    if (!dirty) return;
+
+    QMessageBox::StandardButton btn = QMessageBox::question(this,
+        QString::fromUtf8("放弃修改"),
+        QString::fromUtf8("确定要放弃本次所有修改、重新加载数据库中的数据吗？"),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (btn != QMessageBox::Yes) return;
+
+    loadFromDatabase();
+    dirty = false;
+    refreshAllTabs();
+    visualPanel->refreshAll();
+    statusBar()->showMessage(QString::fromUtf8("已从数据库重新加载"), 5000);
 }
 
 void MainWindow::onTabChanged(int index)
 {
-    // Auto-refresh the tab that was just selected
     switch (index) {
         case 0: bookTab->refreshTable(); break;
         case 1: readerTab->refreshTable(); break;
@@ -158,14 +216,6 @@ void MainWindow::onTabChanged(int index)
         case 3: seatTab->refreshGrid(); break;
         case 4: hotRankTab->refreshRanking(); break;
         default: break;
-    }
-}
-
-void MainWindow::populateSampleDataIfNeeded()
-{
-    if (library->getAllBooks().empty()) {
-        SeedData::populate(library);
-        qDebug() << "Sample data populated";
     }
 }
 
@@ -185,5 +235,5 @@ void MainWindow::showAbout()
             "<h2>高校图书馆智能管理系统</h2>"
             "<p>数据结构课程大作业</p>"
             "<p>涵盖数据结构：链表、栈、队列、二叉排序树、哈希表、图、堆、稀疏矩阵</p>"
-            "<p>技术栈：C++17 / Qt6 / CMake</p>"));
+            "<p>技术栈：C++17 / Qt6 / SQLite / CMake</p>"));
 }
