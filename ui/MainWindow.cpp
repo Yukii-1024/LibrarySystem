@@ -88,9 +88,9 @@ void MainWindow::setupUI()
     funcTabs->addTab(bookTab, QString::fromUtf8("\U0001F4DA 图书管理"));
     funcTabs->addTab(readerTab, QString::fromUtf8("\U0001F464 读者管理"));
     funcTabs->addTab(borrowTab, QString::fromUtf8("\U0001F4D6 借阅/归还"));
-    funcTabs->addTab(seatTab, QString::fromUtf8("\U0001F4BA 座位预约"));
-    funcTabs->addTab(hotRankTab, QString::fromUtf8("\U0001F525 热门排行"));
     funcTabs->addTab(recommendTab, QString::fromUtf8("\U0001F517 图书推荐"));
+    funcTabs->addTab(hotRankTab, QString::fromUtf8("\U0001F525 热门排行"));
+    funcTabs->addTab(seatTab, QString::fromUtf8("\U0001F4BA 座位预约"));
 
     visualPanel = new VisualPanel(library, centralSplitter);
 
@@ -213,8 +213,9 @@ void MainWindow::onTabChanged(int index)
         case 0: bookTab->refreshTable(); break;
         case 1: readerTab->refreshTable(); break;
         case 2: borrowTab->refreshTable(); break;
-        case 3: seatTab->refreshGrid(); break;
+        case 3: recommendTab->graphRefreshed(); break;
         case 4: hotRankTab->refreshRanking(); break;
+        case 5: seatTab->refreshGrid(); break;
         default: break;
     }
 }
