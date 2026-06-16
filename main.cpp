@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QIcon>
 #include "ui/MainWindow.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -18,8 +19,14 @@ int main(int argc, char *argv[])
     app.setApplicationName(QString::fromUtf8("高校图书馆智能管理系统"));
     app.setOrganizationName("DataStructureProject");
 
-    MainWindow w;
-    w.show();
+    // Set application icon (icon.png beside the executable)
+    QString iconPath = QCoreApplication::applicationDirPath() + "/icon.png";
+    app.setWindowIcon(QIcon(iconPath));
 
-    return app.exec();
+    MainWindow w;
+    if (w.isLoginSuccess()) {
+        w.show();
+        return app.exec();
+    }
+    return 0;
 }

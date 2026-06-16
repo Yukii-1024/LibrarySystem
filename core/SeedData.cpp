@@ -8,7 +8,7 @@ void SeedData::populate(LibrarySystem* lib)
     if (!lib) return;
     if (!lib->getAllBooks().empty()) return; // already populated
 
-    // --- Books (10) ---
+    // --- Books (30) ---
     auto* b1 = new Book("978-7-302-23456-1", "TP311.1/C01",
         "数据结构（C语言版）", "严蔚敏", "清华大学出版社", 5);
     auto* b2 = new Book("978-7-111-40701-8", "TP311.1/C02",
@@ -30,10 +30,57 @@ void SeedData::populate(LibrarySystem* lib)
     auto* b10 = new Book("978-7-111-40702-5", "TP312/C02",
         "C程序设计语言", "K&R", "机械工业出版社", 3);
 
+    auto* b11 = new Book("978-7-111-44250-4", "TP316/O01",
+        "深入理解计算机系统", "Bryant", "机械工业出版社", 4);
+    auto* b12 = new Book("978-7-302-54132-7", "TP311.13/D01",
+        "数据库系统概念", "Silberschatz", "机械工业出版社", 3);
+    auto* b13 = new Book("978-7-111-58823-6", "TP18/R01",
+        "人工智能：一种现代方法", "Russell", "清华大学出版社", 3);
+    auto* b14 = new Book("978-7-115-48549-8", "TP312/J02",
+        "Java核心技术 卷I", "Horstmann", "机械工业出版社", 5);
+    auto* b15 = new Book("978-7-302-47364-0", "TP312/P01",
+        "流畅的Python", "Ramalho", "人民邮电出版社", 4);
+    auto* b16 = new Book("978-7-111-59563-0", "TP311.5/S01",
+        "软件工程：实践者的研究方法", "Pressman", "机械工业出版社", 2);
+    auto* b17 = new Book("978-7-302-51116-0", "TP393.08/W01",
+        "网络安全基础", "Stallings", "电子工业出版社", 3);
+    auto* b18 = new Book("978-7-111-56125-7", "TP311.1/L01",
+        "程序员修炼之道", "Hunt", "人民邮电出版社", 3);
+    auto* b19 = new Book("978-7-121-35903-3", "TP312/J03",
+        "深入理解Java虚拟机", "周志明", "机械工业出版社", 5);
+    auto* b20 = new Book("978-7-302-56432-8", "TP311.1/D03",
+        "算法图解", "Bhargava", "人民邮电出版社", 4);
+    auto* b21 = new Book("978-7-111-62259-5", "TP316/L01",
+        "UNIX环境高级编程", "Stevens", "机械工业出版社", 2);
+    auto* b22 = new Book("978-7-111-53516-4", "TP312/G01",
+        "Go程序设计语言", "Donovan", "机械工业出版社", 3);
+    auto* b23 = new Book("978-7-115-42280-2", "TP393.09/W01",
+        "HTTP权威指南", "Gourley", "人民邮电出版社", 2);
+    auto* b24 = new Book("978-7-302-48497-4", "TP183/D01",
+        "深度学习", "Goodfellow", "人民邮电出版社", 3);
+    auto* b25 = new Book("978-7-111-60162-3", "TP314/C01",
+        "编译原理", "Aho", "机械工业出版社", 2);
+    auto* b26 = new Book("978-7-121-34694-5", "TP312/R01",
+        "R语言实战", "Kabacoff", "人民邮电出版社", 3);
+    auto* b27 = new Book("978-7-111-54803-6", "TP311.5/M01",
+        "人月神话", "Brooks", "清华大学出版社", 3);
+    auto* b28 = new Book("978-7-302-37551-5", "TP312/S01",
+        "Scala编程", "Odersky", "电子工业出版社", 2);
+    auto* b29 = new Book("978-7-111-67281-6", "TP316/D01",
+        "分布式系统：概念与设计", "Coulouris", "机械工业出版社", 2);
+    auto* b30 = new Book("978-7-121-39042-5", "TP311.1/K01",
+        "代码整洁之道", "Martin", "人民邮电出版社", 4);
+
     lib->addBook(b1); lib->addBook(b2); lib->addBook(b3);
     lib->addBook(b4); lib->addBook(b5); lib->addBook(b6);
     lib->addBook(b7); lib->addBook(b8); lib->addBook(b9);
-    lib->addBook(b10);
+    lib->addBook(b10); lib->addBook(b11); lib->addBook(b12);
+    lib->addBook(b13); lib->addBook(b14); lib->addBook(b15);
+    lib->addBook(b16); lib->addBook(b17); lib->addBook(b18);
+    lib->addBook(b19); lib->addBook(b20); lib->addBook(b21);
+    lib->addBook(b22); lib->addBook(b23); lib->addBook(b24);
+    lib->addBook(b25); lib->addBook(b26); lib->addBook(b27);
+    lib->addBook(b28); lib->addBook(b29); lib->addBook(b30);
 
     // --- Readers (5) ---
     lib->addReader(new Reader("admin", "admin123", "管理员", "图书馆", true));

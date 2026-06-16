@@ -14,7 +14,7 @@ LoginDialog::LoginDialog(LibrarySystem* lib, QWidget* parent)
     , library(lib)
 {
     setWindowTitle(QString::fromUtf8("登录 - 高校图书馆智能管理系统"));
-    setFixedSize(420, 280);
+    setFixedSize(420, 240);
     setupUI();
 }
 
@@ -41,9 +41,6 @@ void LoginDialog::setupUI()
     formLayout->addRow(QString::fromUtf8("密码:"), pwdEdit);
 
     mainLayout->addLayout(formLayout);
-
-    adminCheck = new QCheckBox(QString::fromUtf8("以管理员身份登录"), this);
-    mainLayout->addWidget(adminCheck);
 
     auto* btnLayout = new QHBoxLayout();
     auto* loginBtn = new QPushButton(QString::fromUtf8("登录"), this);
@@ -75,20 +72,12 @@ void LoginDialog::onLogin()
         return;
     }
 
-    bool readerIsAdmin = false;
-    bool valid = library->verifyLogin(id, pwd, readerIsAdmin);
+    bool valid = library->verifyLogin(id, pwd, adminLogin);
 
     if (!valid) {
         QMessageBox::warning(this,
             QString::fromUtf8("登录失败"),
             QString::fromUtf8("学号/工号或密码错误，请重试"));
-        return;
-    }
-
-    if (adminCheck->isChecked() && !readerIsAdmin) {
-        QMessageBox::warning(this,
-            QString::fromUtf8("权限不足"),
-            QString::fromUtf8("该账号不是管理员，请取消管理员选项后重试"));
         return;
     }
 

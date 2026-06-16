@@ -7,7 +7,10 @@
 #include "SeatTab.h"
 #include "HotRankTab.h"
 #include "RecommendTab.h"
+#include "MessageQueueTab.h"
+#include "LogPanel.h"
 #include "persistence/DataPersistence.h"
+#include "core/SeedData.h"
 #include <QSplitter>
 #include <QTabWidget>
 #include <QMenuBar>
@@ -23,7 +26,6 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , library(new LibrarySystem(this))
 {
-    // Init SQLite and load data (DB next to exe)
     QString dbPath = QCoreApplication::applicationDirPath() + "/library.db";
     if (!DataPersistence::initDatabase(dbPath))
         qWarning() << "Failed to init database";
@@ -42,9 +44,11 @@ MainWindow::MainWindow(QWidget* parent)
     if (dlg.exec() == QDialog::Accepted) {
         isAdmin = dlg.isAdminLogin();
         currentReaderId = dlg.getReaderId();
+        loginSuccess = true;
+        library->setCurrentOperator(currentReaderId, isAdmin);
         onLoginSuccess();
     } else {
-        QApplication::quit();
+        close();  // 关闭窗口，程序将在 main 中正常退出
     }
 }
 
@@ -76,6 +80,7 @@ void MainWindow::setupUI()
 {
     centralSplitter = new QSplitter(Qt::Horizontal, this);
 
+    // ── Left: function tabs ──
     funcTabs = new QTabWidget(centralSplitter);
 
     bookTab = new BookTab(library);
@@ -85,23 +90,38 @@ void MainWindow::setupUI()
     hotRankTab = new HotRankTab(library);
     recommendTab = new RecommendTab(library);
 
-    funcTabs->addTab(bookTab, QString::fromUtf8("\U0001F4DA 图书管理"));
-    funcTabs->addTab(readerTab, QString::fromUtf8("\U0001F464 读者管理"));
-    funcTabs->addTab(borrowTab, QString::fromUtf8("\U0001F4D6 借阅/归还"));
+    funcTabs->addTab(bookTab,      QString::fromUtf8("\U0001F4DA 图书管理"));
+    funcTabs->addTab(readerTab,    QString::fromUtf8("\U0001F464 读者管理"));
+    funcTabs->addTab(borrowTab,    QString::fromUtf8("\U0001F4D6 借阅/归还"));
     funcTabs->addTab(recommendTab, QString::fromUtf8("\U0001F517 图书推荐"));
-    funcTabs->addTab(hotRankTab, QString::fromUtf8("\U0001F525 热门排行"));
-    funcTabs->addTab(seatTab, QString::fromUtf8("\U0001F4BA 座位预约"));
-
-    visualPanel = new VisualPanel(library, centralSplitter);
+    funcTabs->addTab(hotRankTab,   QString::fromUtf8("\U0001F525 热门排行"));
+    funcTabs->addTab(seatTab,      QString::fromUtf8("\U0001F4BA 座位预约"));
 
     centralSplitter->addWidget(funcTabs);
-    centralSplitter->addWidget(visualPanel);
-    centralSplitter->setSizes({900, 500});
-    centralSplitter->setStretchFactor(0, 3);
-    centralSplitter->setStretchFactor(1, 2);
+
+    // ── Right: optional view panels (hidden by default) ──
+    rightSplitter = new QSplitter(Qt::Vertical, centralSplitter);
+
+    visualPanel = new VisualPanel(library, rightSplitter);
+    mqPanel = new MessageQueueTab(library, rightSplitter);
+    logPanel = new LogPanel(library, rightSplitter);
+
+    rightSplitter->addWidget(visualPanel);
+    rightSplitter->addWidget(mqPanel);
+    rightSplitter->addWidget(logPanel);
+
+    centralSplitter->addWidget(rightSplitter);
+    // Start with all panels hidden — only funcTabs visible
+    visualPanel->hide();
+    mqPanel->hide();
+    logPanel->hide();
+    centralSplitter->setSizes({1, 0});
+    centralSplitter->setStretchFactor(0, 1);
+    centralSplitter->setStretchFactor(1, 0);
 
     setCentralWidget(centralSplitter);
-    statusBar()->showMessage(QString::fromUtf8("就绪 | 左侧操作，右侧查看数据结构实时状态"));
+    statusBar()->showMessage(QString::fromUtf8(
+        "就绪 | 视图 → 开启数据结构可视化 / 消息队列 / 操作日志面板"));
 }
 
 void MainWindow::setupMenuBar()
@@ -118,10 +138,24 @@ void MainWindow::setupMenuBar()
 
     // ── 视图 ──
     QMenu* viewMenu = menuBar()->addMenu(QString::fromUtf8("视图"));
-    QAction* toggleVisualAct = viewMenu->addAction(QString::fromUtf8("\U0001F50D 切换可视化面板"));
+
+    toggleVisualAct = viewMenu->addAction(QString::fromUtf8("\U0001F50D 数据结构可视化"));
     toggleVisualAct->setCheckable(true);
-    toggleVisualAct->setChecked(true);
-    connect(toggleVisualAct, &QAction::toggled, visualPanel, &QWidget::setVisible);
+    toggleVisualAct->setChecked(false);
+    connect(toggleVisualAct, &QAction::toggled,
+            this, &MainWindow::onToggleVisualPanel);
+
+    toggleMQAct = viewMenu->addAction(QString::fromUtf8("\U0001F4E8 消息队列"));
+    toggleMQAct->setCheckable(true);
+    toggleMQAct->setChecked(false);
+    connect(toggleMQAct, &QAction::toggled,
+            this, &MainWindow::onToggleMQPanel);
+
+    toggleLogAct = viewMenu->addAction(QString::fromUtf8("\U0001F4DD 操作日志"));
+    toggleLogAct->setCheckable(true);
+    toggleLogAct->setChecked(false);
+    connect(toggleLogAct, &QAction::toggled,
+            this, &MainWindow::onToggleLogPanel);
 
     // ── 帮助 ──
     QMenu* helpMenu = menuBar()->addMenu(QString::fromUtf8("帮助"));
@@ -137,7 +171,7 @@ void MainWindow::setupConnections()
             this, &MainWindow::markDirty);
     connect(funcTabs, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
 
-    // Connect read-only tabs to their data structure visualizations
+    // Read-only tabs → visual panel
     connect(hotRankTab, &HotRankTab::heapRefreshed, this, [this]() {
         visualPanel->onOperation(QString::fromUtf8("刷新热门排行"),
             QStringList() << QString::fromUtf8("堆"),
@@ -153,6 +187,64 @@ void MainWindow::setupConnections()
             QStringList() << QString::fromUtf8("矩阵"),
             QString::fromUtf8("基于稀疏矩阵展示座位分布"));
     });
+
+    // Message queue panel
+    connect(mqPanel, &MessageQueueTab::queueRefreshed, this, [this]() {
+        visualPanel->onOperation(QString::fromUtf8("消息队列处理"),
+            QStringList() << QString::fromUtf8("队列"),
+            QString::fromUtf8("FIFO消息队列逐条处理操作请求，保证多读者并发安全"));
+    });
+}
+
+void MainWindow::onToggleVisualPanel(bool visible)
+{
+    visualPanel->setVisible(visible);
+    updateRightPanelVisibility();
+    if (visible) visualPanel->refreshAll();
+}
+
+void MainWindow::onToggleMQPanel(bool visible)
+{
+    mqPanel->setVisible(visible);
+    updateRightPanelVisibility();
+    if (visible) mqPanel->refreshAll();
+}
+
+void MainWindow::onToggleLogPanel(bool visible)
+{
+    logPanel->setVisible(visible);
+    updateRightPanelVisibility();
+    if (visible) logPanel->refreshAll();
+}
+
+void MainWindow::updateRightPanelVisibility()
+{
+    bool visVis = visualPanel->isVisible();
+    bool mqVis = mqPanel->isVisible();
+    bool logVis = logPanel->isVisible();
+
+    if (visVis || mqVis || logVis) {
+        int w = centralSplitter->width();
+        if (w < 200) w = 1400;
+        centralSplitter->setSizes({w * 2 / 3, w / 3});
+        centralSplitter->setStretchFactor(0, 2);
+        centralSplitter->setStretchFactor(1, 1);
+
+        // Split right side equally among visible panels
+        int visibleCount = (visVis ? 1 : 0) + (mqVis ? 1 : 0) + (logVis ? 1 : 0);
+        int h = rightSplitter->height();
+        if (h < 10) h = 400;
+        int each = h / visibleCount;
+        QList<int> sizes;
+        if (visVis) sizes.append(each);
+        if (mqVis)  sizes.append(each);
+        if (logVis) sizes.append(each);
+        if (!sizes.isEmpty()) rightSplitter->setSizes(sizes);
+    } else {
+        centralSplitter->setSizes({1, 0});
+        centralSplitter->setStretchFactor(0, 1);
+        centralSplitter->setStretchFactor(1, 0);
+    }
 }
 
 void MainWindow::markDirty()
@@ -165,6 +257,9 @@ void MainWindow::loadFromDatabase()
 {
     if (DataPersistence::loadAll(library))
         qDebug() << "Data loaded from database";
+
+    // Seed initial data when database is empty
+    SeedData::populate(library);
 }
 
 void MainWindow::onLoginSuccess()
@@ -174,6 +269,11 @@ void MainWindow::onLoginSuccess()
         : QString::fromUtf8("读者");
     setWindowTitle(QString::fromUtf8("高校图书馆智能管理系统 [%1] 当前用户: %2")
                        .arg(role, currentReaderId));
+
+    // Apply permissions
+    bookTab->setAdminMode(isAdmin);
+    seatTab->setCurrentUser(currentReaderId, isAdmin);
+    funcTabs->setTabVisible(1, isAdmin);  // 读者管理 tab: only for admin
 
     refreshAllTabs();
 }
@@ -204,6 +304,8 @@ void MainWindow::onDiscardChanges()
     dirty = false;
     refreshAllTabs();
     visualPanel->refreshAll();
+    mqPanel->refreshAll();
+    logPanel->refreshAll();
     statusBar()->showMessage(QString::fromUtf8("已从数据库重新加载"), 5000);
 }
 

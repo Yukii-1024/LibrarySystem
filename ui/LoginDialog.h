@@ -1,7 +1,6 @@
 #pragma once
 #include <QDialog>
 #include <QLineEdit>
-#include <QCheckBox>
 
 class LibrarySystem;
 
@@ -11,7 +10,7 @@ class LoginDialog : public QDialog {
 public:
     explicit LoginDialog(LibrarySystem* lib, QWidget* parent = nullptr);
 
-    bool isAdminLogin() const { return adminCheck->isChecked(); }
+    bool isAdminLogin() const { return adminLogin; }
     QString getReaderId() const { return idEdit->text(); }
     QString getPassword() const { return pwdEdit->text(); }
 
@@ -25,5 +24,5 @@ private:
     LibrarySystem* library = nullptr;
     QLineEdit* idEdit = nullptr;
     QLineEdit* pwdEdit = nullptr;
-    QCheckBox* adminCheck = nullptr;
+    bool adminLogin = false;
 };

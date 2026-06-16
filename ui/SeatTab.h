@@ -13,6 +13,7 @@ class SeatTab : public QWidget {
 public:
     explicit SeatTab(LibrarySystem* lib, QWidget* parent = nullptr);
     void refreshGrid();
+    void setCurrentUser(const QString& id, bool admin);
 
 signals:
     void gridRefreshed();
@@ -24,10 +25,15 @@ private slots:
 
 private:
     void setupUI();
+    bool isReaderSeatConflict(const QString& readerId) const;
+
     LibrarySystem* library;
     QSpinBox* rowSpin, *colSpin;
-    QLineEdit* readerEdit;
     QDateTimeEdit* startEdit, *endEdit;
     QTableWidget* grid;
     QLabel* statusLabel;
+    QLabel* userLabel;
+
+    QString currentUserId;
+    bool isAdmin = false;
 };

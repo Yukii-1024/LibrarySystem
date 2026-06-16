@@ -1,205 +1,124 @@
 # LibrarySystem — 高校图书馆智能管理系统
 
-基于 **C++17 / Qt6** 的图书馆管理系统，是数据结构课程大作业。系统内部集成了 **8 种手写数据结构**（链表、栈、队列、二叉排序树、哈希表、图、堆、稀疏矩阵），实现图书管理、读者管理、借阅归还、座位预约、热门排行、图书推荐等功能，并配有实时的**数据结构可视化面板**。
+基于 **C++17 / Qt6** 的图书馆管理系统，是数据结构课程大作业。系统内部集成了 **8 种手写数据结构**（链表、栈、队列、二叉排序树、哈希表、图、堆、稀疏矩阵），实现图书管理、读者管理、借阅归还、座位预约、热门排行、图书推荐等功能，并配有实时的**数据结构可视化面板**、**消息队列面板**和**操作日志面板**。
 
 ---
 
-## 目录
-
-- [如何使用](#如何使用)
-  - [环境要求](#环境要求)
-  - [直接运行](#直接运行)
-  - [从源码编译](#从源码编译)
-  - [使用说明](#使用说明)
-- [软件架构](#软件架构)
-  - [整体架构](#整体架构)
-  - [分层设计](#分层设计)
-  - [数据结构映射](#数据结构映射)
-  - [模块说明](#模块说明)
-  - [类关系图](#类关系图)
-- [项目结构](#项目结构)
-
----
-
-## 如何使用
+## 快速开始
 
 ### 环境要求
 
 | 组件 | 版本 | 说明 |
 |------|------|------|
 | Windows | 10 / 11 64 位 | 操作系统 |
-| MinGW-w64 | GCC 11.5.0 MSVCRT | C++ 编译器（必须与 Qt 共用 MSVCRT） |
+| MinGW-w64 | GCC 11.5.0 | C++ 编译器 |
 | Qt | 6.8.2 MinGW 64-bit | GUI 框架 |
 | CMake | ≥ 3.16 | 构建系统 |
 | Ninja | 任意版本 | 构建工具 |
 
-> ⚠️ **重要**：Qt 6.8.2 的 MinGW 版本使用 MSVCRT 运行时，编译器也必须使用 MSVCRT 版本，否则会出现堆损坏（`0xc0000374`）导致程序崩溃。项目已配置为使用 `C:\Tool\pandacpp\mingw64`（GCC 11.5.0 MSVCRT）。
-
 ### 直接运行
 
-如果你已经编译好，`build/` 目录下包含所有必要的 DLL 文件：
-
 ```powershell
-# 添加 Qt bin 到 PATH（如果还没加）
 $env:PATH = "C:\Qt\6.8.2\mingw_64\bin;$env:PATH"
-
-# 运行
 C:\Projects\LibrarySystem\build\LibrarySystem.exe
 ```
-
-或者直接双击 `build\LibrarySystem.exe`（前提是 `build/` 目录下有 windeployqt 部署的所有 DLL）。
 
 ### 从源码编译
 
 ```powershell
-# 方式一：使用项目提供的构建脚本（推荐）
-.\build_msvcrt.bat
-
-# 方式二：手动构建
-$env:PATH = "C:\Qt\6.8.2\mingw_64\bin;C:\Tool\pandacpp\mingw64\bin;C:\Tool\mingw64\bin;$env:PATH"
+$env:PATH = "C:\Tool\pandacpp\mingw64\bin;C:\Tool\mingw64\bin;C:\Qt\6.8.2\mingw_64\bin;" + $env:PATH
 cd build
-cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug `
-    -DCMAKE_CXX_COMPILER="C:/Tool/pandacpp/mingw64/bin/g++.exe"
-ninja
-
-# 部署 Qt 运行时（使程序可在任意位置运行）
-windeployqt --release --no-translations LibrarySystem.exe
+cmake .. -G Ninja
+cmake --build .
 ```
 
-### 使用说明
+---
 
-1. **启动程序**：双击 `LibrarySystem.exe`，出现登录界面
-2. **登录**：输入学号/工号和密码（暂无预设账户，注册功能待实现，直接点登录即可进入）
-3. **主界面**：
-   - **左侧**：功能标签页（图书管理、读者管理、借阅/归还、座位预约、热门排行、图书推荐）
-   - **右侧**：数据结构可视化面板，实时显示数据在 BST、哈希表、堆、图、栈、队列、座位矩阵中的状态
-4. **菜单栏**：文件（保存/加载数据）、视图（切换可视化面板）、帮助
+## 用户指南
+
+### 登录与权限
+
+| 账号 | 密码 | 角色 | 权限 |
+|------|------|------|------|
+| `admin` | `admin123` | 管理员 | 增删改图书、增删读者、管理所有座位 |
+| `2024001` | `123456` | 读者 | 借阅/归还、预约座位（同一时段仅一个） |
+| `2024002` ~ `2024004` | `123456` | 读者 | 同上 |
+
+- 关闭登录窗口程序自动退出
+- 管理员权限由账号自动判断，无需手动勾选
+- 新用户可点击「注册新读者」自助注册
+
+### 功能标签页（左侧 6 个）
+
+| 标签 | 管理员 | 普通读者 |
+|:---|:---|:---|
+| 图书管理 | 增删改查全部可见 | 仅搜索框 + 图书列表（只读） |
+| 读者管理 | 可见 | **完全隐藏** |
+| 借阅/归还 | 可见 | 可见（借书/还书/撤销） |
+| 图书推荐 | 可见 | 可见（输入 ISBN 获取推荐） |
+| 热门排行 | 可见 | 可见（Top N 热门图书） |
+| 座位预约 | 可预约多个座位 | 同 时段仅一个座位，释放一键自动 |
+
+### 座位预约
+
+- 自动使用登录者学号，无需手动输入
+- 网格颜色：🟢 绿色=空闲　🔴 红色=他人占用　🟠 橙色=你的座位
+- 普通读者：预约后点「释放座位」自动找到并释放唯一座位
+- 管理员：可管理所有座位
+
+### 视图面板（默认关闭，从 "视图" 菜单开启）
+
+| 面板 | 内容 |
+|:---|:---|
+| 数据结构可视化 | BST / 哈希表 / 堆 / 图 / 栈 / 队列 / 稀疏矩阵 的实时状态 |
+| 消息队列 | FIFO 消息队列处理历史，展示并发安全机制 |
+| 操作日志 | 所有重要操作记录，支持「全部」/「仅管理员」筛选 |
+
+### 数据持久化
+
+- 文件 → 保存修改：写入 SQLite (`library.db`)
+- 文件 → 放弃修改：回滚到上次保存
+- 关闭窗口时如有未保存修改会提示
 
 ---
 
 ## 软件架构
 
-### 整体架构
-
-```
-┌─────────────────────────────────────────────────────┐
-│                    UI Layer (Qt6)                     │
-│  MainWindow  LoginDialog  VisualPanel               │
-├─────────────────────────────────────────────────────┤
-│                  Core Layer (Business)                │
-│                  LibrarySystem                       │
-├─────────────────────────────────────────────────────┤
-│              Data Structure Layer                     │
-│  LinkedList  Stack  Queue  BST  HashTable  Graph     │
-│  Heap  SparseMatrix                                  │
-├─────────────────────────────────────────────────────┤
-│                 Model Layer                           │
-│  Book  Reader  BorrowRecord  Seat                   │
-├─────────────────────────────────────────────────────┤
-│              Persistence Layer                        │
-│  DataPersistence  Logger                             │
-└─────────────────────────────────────────────────────┘
-```
-
-### 分层设计
-
-| 层 | 职责 | 依赖方向 |
-|----|------|----------|
-| **UI** | Qt Widgets 界面，处理用户交互和数据结构可视化 | → Core, Model |
-| **Core** | 业务逻辑中心，整合所有数据结构，提供统一 API | → DataStruct, Model |
-| **DataStruct** | 手写数据结构模板类，通用、可复用 | — |
-| **Model** | 纯数据实体类，不含业务逻辑 | — |
-| **Persistence** | 文件读写、日志记录 | → Model |
-
-### 数据结构映射
-
-每个数据结构在系统中都有明确的应用场景：
-
-| 数据结构 | 应用场景 | 核心操作 |
-|----------|----------|----------|
-| **LinkedList** (双向链表) | 图书基础列表、读者列表、借阅记录表 | 增删改查、条件筛选 |
-| **Stack** (顺序栈) | 操作历史 Undo/Redo | push / pop 操作记录 |
-| **Queue** (链队列) | 热门图书预约排队（每本书一个队列） | FIFO 先到先服务 |
-| **BST** (二叉排序树) | 按索书号快速检索图书、范围查询 | 插入、删除、查找、中序遍历 |
-| **HashTable** (链地址法) | 读者登录验证（学号→读者）、按书名查找 | O(1) 查找、动态扩容 |
-| **Graph** (邻接表) | 图书推荐系统（共同借阅关系） | 添加边、权重更新、TopN 推荐 |
-| **MaxHeap** (最大堆) | 热门图书排行榜 Top K | 插入、堆化、更新键值 |
-| **SparseMatrix** | 图书馆座位分布管理 | 坐标映射、预约/释放 |
-
-### 模块说明
-
-#### Model 层 (`model/`)
-
-| 类 | 关键字段 | 说明 |
-|----|----------|------|
-| `Book` | isbn, callNumber, title, author, borrowCount | 图书实体，索书号用于 BST 索引，borrowCount 用于堆排行 |
-| `Reader` | id, password, name, currentBorrow, isAdmin | 读者实体，id 用于哈希表索引 |
-| `BorrowRecord` | recordId, readerId, bookISBN, returned | 借阅记录，存储在链表中 |
-| `Seat` | row, col, readerId, startTime, endTime | 座位实体，存储在稀疏矩阵中 |
-
-#### DataStruct 层 (`datastruct/`)
-
-所有数据结构均为**模板类**，不依赖特定数据类型，均可独立复用：
-
-- `LinkedList<T>` — 双向链表，支持头插、尾插、条件删除、遍历
-- `Stack<T>` — 顺序栈，支持动态扩容、移动语义
-- `Queue<T>` — 链队列，FIFO
-- `BST<T, KeyFunc>` — 二叉排序树，预留 AVL 旋转操作，可升级为平衡树
-- `HashTable<T, KeyFunc>` — 链地址哈希表（djb2 算法），负载因子 0.75 自动扩容
-- `Graph` — 无向带权图（邻接表），支持顶点增删、边加权、推荐算法
-- `MaxHeap<T, KeyFunc>` — 最大堆，支持建堆、插入、弹出、键值更新、TopN
-- `SparseMatrix<T>` — 基于 `std::map` 的坐标映射，支持转为稠密矩阵
-
-#### Core 层 (`core/`)
-
-`LibrarySystem` 是整个系统的**业务中枢**，继承自 `QObject`，通过 Qt 信号将操作传递给可视化面板：
-
-```
-addBook()    → LinkedList.append + BST.insert + HashTable.insert + Graph.addVertex + Heap.insert
-removeBook() → LinkedList.remove + BST.remove + HashTable.remove + Graph.removeVertex
-borrowBook() → 检查库存 → 更新计数 → 生成借阅记录 → 更新堆 → 更新图 → Undo栈记录
-returnBook() → 恢复库存 → 标记归还 → 更新堆 → Undo栈记录
-undoOp()     → Stack.pop → 反向执行借/还操作
-recommend()  → Graph.recommend (共同借阅关联度排序)
-getHotBooks()→ Heap.getTopN
-```
-
-#### UI 层 (`ui/`)
-
-| 类 | 继承 | 说明 |
-|----|------|------|
-| `MainWindow` | QMainWindow | 主窗口，左右分栏布局（功能 Tab + 可视化面板），菜单栏 |
-| `LoginDialog` | QDialog | 登录弹窗，支持管理员/读者身份切换 |
-| `VisualPanel` | QWidget | 数据结构可视化面板，7 个 QGraphicsView 分别展示不同数据结构的实时状态 |
-
-### 类关系图
-
 ```
 QApplication
-    │
-    └── MainWindow (QMainWindow)
-            │
-            ├── LibrarySystem (QObject) ── 业务中枢
-            │       │
-            │       ├── LinkedList<Book*>          ── 图书链表
-            │       ├── LinkedList<Reader*>        ── 读者链表
-            │       ├── LinkedList<BorrowRecord*>  ── 借阅记录链表
-            │       ├── Stack<OperationRecord>     ── Undo栈
-            │       ├── BST<Book>                  ── 索书号索引
-            │       ├── HashTable<Reader>          ── 读者学号索引
-            │       ├── HashTable<Book>            ── 书名索引
-            │       ├── Graph                      ── 推荐图
-            │       ├── MaxHeap<Book>              ── 热门排行堆
-            │       ├── SparseMatrix<Seat>         ── 座位矩阵
-            │       └── map<string, Queue<QString>>── 预约队列
-            │
-            ├── VisualPanel (QWidget) ── 可视化面板
-            │       ├── QTabWidget (7个Tab)
-            │       ├── QGraphicsScene × 7
-            │       └── QGraphicsView × 7
-            │
-            └── LoginDialog (QDialog) ── 登录界面
+  └── MainWindow
+        ├── QTabWidget (6个功能标签)
+        │     ├── BookTab        ←→ LibrarySystem
+        │     ├── ReaderTab      ←→ (仅管理员可见)
+        │     ├── BorrowTab      ←→
+        │     ├── RecommendTab   ←→
+        │     ├── HotRankTab     ←→
+        │     └── SeatTab        ←→
+        │
+        └── QSplitter (右侧视图面板，默认隐藏)
+              ├── VisualPanel      — 数据结构可视化
+              ├── MessageQueueTab  — 消息队列
+              └── LogPanel         — 操作日志
+
+LibrarySystem (核心业务层)
+  ├── 8 种数据结构实例
+  ├── MessageQueueProcessor (并发安全)
+  ├── OperationLogger (操作审计)
+  └── DataPersistence (SQLite)
 ```
+
+### 数据结构与业务映射
+
+| 数据结构 | 存储形态 | 应用场景 |
+|:---|:---|:---|
+| **LinkedList** | 单向链表 | 图书/读者/借阅记录的主存储 |
+| **Stack** | 链栈 | 操作撤销 (Undo) |
+| **Queue** | 链队列 | 预约排队、消息队列 |
+| **BST (AVL)** | 平衡二叉树 | 索书号索引与范围查询 |
+| **HashTable** | 链地址法 + djb2 | 学号索引、ISBN/书名索引 |
+| **Graph** | 邻接表 | 共同借阅推荐网络 |
+| **MaxHeap** | 完全二叉树数组 | 热门图书 Top K 排行 |
+| **SparseMatrix** | 三元组压缩 | 座位分布管理 |
 
 ---
 
@@ -207,36 +126,46 @@ QApplication
 
 ```
 LibrarySystem/
-├── main.cpp                    # 程序入口
-├── CMakeLists.txt              # CMake 构建配置
-├── build_msvcrt.bat            # 一键编译脚本
+├── main.cpp
+├── CMakeLists.txt
+├── icon.png                     # 应用图标
 ├── README.md
-├── model/                      # 数据模型层
-│   ├── Book.h
-│   ├── Reader.h
-│   ├── BorrowRecord.h
-│   └── Seat.h
-├── datastruct/                 # 手写数据结构层
-│   ├── Common.h                # 通用枚举与状态码
-│   ├── LinkedList.h            # 双向链表
-│   ├── Stack.h                 # 顺序栈
-│   ├── Queue.h                 # 链队列
-│   ├── BST.h                   # 二叉排序树（可升级AVL）
-│   ├── HashTable.h             # 哈希表（链地址法）
-│   ├── Graph.h                 # 无向带权图（邻接表）
-│   ├── Heap.h                  # 最大堆（优先队列）
-│   └── SparseMatrix.h          # 稀疏矩阵
-├── core/                       # 业务逻辑层
-│   ├── LibrarySystem.h
-│   └── LibrarySystem.cpp
-├── ui/                         # 用户界面层
-│   ├── MainWindow.h/.cpp       # 主窗口
-│   ├── LoginDialog.h/.cpp      # 登录对话框
-│   └── VisualPanel.h/.cpp      # 数据结构可视化面板
-├── persistence/                # 持久化层
-│   ├── DataPersistence.h/.cpp  # 数据存取
-│   └── utils/
-│       ├── Logger.h/.cpp       # 日志工具
-└── build/                      # 构建输出（已忽略）
+├── model/
+│   ├── Book.h                   # 图书实体
+│   ├── Reader.h                 # 读者实体
+│   ├── BorrowRecord.h           # 借阅记录
+│   └── Seat.h                   # 座位实体（Free/Occupied）
+├── datastruct/
+│   ├── Common.h                 # 状态码与枚举
+│   ├── LinkedList.h             # 单向链表
+│   ├── Stack.h                  # 链栈
+│   ├── Queue.h                  # 链队列 (FIFO)
+│   ├── BST.h                    # AVL 平衡树
+│   ├── HashTable.h              # 哈希表 (djb2 + 链地址)
+│   ├── Graph.h                  # 无向带权图 (邻接表)
+│   ├── Heap.h                   # 最大堆
+│   └── SparseMatrix.h           # 稀疏矩阵 (三元组)
+├── core/
+│   ├── LibrarySystem.h/.cpp     # 业务中枢
+│   ├── MessageQueue.h/.cpp      # 消息队列处理器
+│   ├── OperationLog.h/.cpp      # 操作日志记录
+│   └── SeedData.h/.cpp          # 初始数据 (30本书)
+├── ui/
+│   ├── MainWindow.h/.cpp        # 主窗口
+│   ├── LoginDialog.h/.cpp       # 登录对话框
+│   ├── BookTab.h/.cpp           # 图书管理标签
+│   ├── ReaderTab.h/.cpp         # 读者管理标签
+│   ├── BorrowTab.h/.cpp         # 借阅/归还标签
+│   ├── SeatTab.h/.cpp           # 座位预约标签
+│   ├── HotRankTab.h/.cpp        # 热门排行标签
+│   ├── RecommendTab.h/.cpp      # 图书推荐标签
+│   ├── VisualPanel.h/.cpp       # 数据结构可视化面板
+│   ├── MessageQueueTab.h/.cpp   # 消息队列面板
+│   └── LogPanel.h/.cpp          # 操作日志面板
+├── persistence/
+│   └── DataPersistence.h/.cpp   # SQLite 持久化
+├── utils/
+│   └── Logger.h/.cpp            # 调试日志
+└── build/                       # 构建输出
     └── LibrarySystem.exe
 ```

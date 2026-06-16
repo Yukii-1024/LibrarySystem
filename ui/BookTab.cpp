@@ -21,7 +21,7 @@ void BookTab::setupUI()
     auto* main = new QVBoxLayout(this);
 
     // --- Top form ---
-    auto* formBox = new QGroupBox(QString::fromUtf8("图书信息管理"), this);
+    formBox = new QGroupBox(QString::fromUtf8("图书信息管理"), this);
     auto* formHL = new QHBoxLayout(formBox);
 
     auto* form = new QFormLayout();
@@ -223,4 +223,9 @@ void BookTab::refreshTable()
         table->setItem(r, 7, new QTableWidgetItem(QString::number(b->borrowCount)));
     }
     statusLabel->setText(QString::fromUtf8("共 %1 本图书").arg(books.size()));
+}
+
+void BookTab::setAdminMode(bool admin)
+{
+    formBox->setVisible(admin);
 }

@@ -5,6 +5,7 @@
 #include <QTableWidget>
 #include <QLabel>
 #include <QPushButton>
+#include <QGroupBox>
 
 class LibrarySystem;
 
@@ -13,6 +14,7 @@ class BookTab : public QWidget {
 public:
     explicit BookTab(LibrarySystem* lib, QWidget* parent = nullptr);
     void refreshTable();
+    void setAdminMode(bool admin);
 
 private slots:
     void onAdd();
@@ -24,6 +26,7 @@ private slots:
 private:
     void setupUI();
     LibrarySystem* library;
+    QGroupBox* formBox;
     QLineEdit* isbnEdit;
     QLineEdit* callNumEdit;
     QLineEdit* titleEdit;

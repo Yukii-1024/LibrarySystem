@@ -15,6 +15,9 @@
 #include "datastruct/Heap.h"
 #include "datastruct/SparseMatrix.h"
 
+class MessageQueueProcessor;
+class OperationLogger;
+
 // 操作记录结构（用于Undo栈）
 struct OperationRecord {
     OperationType type = OperationType::None;
@@ -95,6 +98,16 @@ public:
     /// Recreate index structures (BST, HashTable, Heap) after clearing data.
     void resetStructures();
 
+    /// 消息队列处理器（所有写操作经此序列化，保证并发安全）
+    MessageQueueProcessor* getMessageQueue() { return messageQueue; }
+
+    /// 操作日志记录器
+    OperationLogger* getLogger() { return operationLogger; }
+
+    /// 设置当前操作用户（供日志记录）
+    void setCurrentOperator(const QString& id, bool admin) {
+        currentOpId = id; currentOpAdmin = admin; }
+
 signals:
     void operationPerformed(const QString& opName,
                             const QStringList& dsUsed,
@@ -122,6 +135,16 @@ private:
 
     // 预约队列：每本书对应一个队列（ISBN -> Queue）
     std::map<std::string, Queue<QString>> reservationQueues;
+
+    // 消息队列处理器（多读者并发安全）
+    MessageQueueProcessor* messageQueue = nullptr;
+
+    // 操作日志记录器
+    OperationLogger* operationLogger = nullptr;
+
+    // 当前操作用户
+    QString currentOpId;
+    bool currentOpAdmin = false;
 
     int nextRecordId = 1;
 

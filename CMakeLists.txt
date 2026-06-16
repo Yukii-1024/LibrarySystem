@@ -32,7 +32,12 @@ set(SOURCES
     ui/SeatTab.cpp
     ui/HotRankTab.cpp
     ui/RecommendTab.cpp
+    ui/MessageQueueTab.cpp
+    ui/LogPanel.cpp
     core/LibrarySystem.cpp
+    core/MessageQueue.cpp
+    core/OperationLog.cpp
+    core/SeedData.cpp
     persistence/DataPersistence.cpp
     utils/Logger.cpp
 )
@@ -60,7 +65,12 @@ set(HEADERS
     ui/SeatTab.h
     ui/HotRankTab.h
     ui/RecommendTab.h
+    ui/MessageQueueTab.h
+    ui/LogPanel.h
     core/LibrarySystem.h
+    core/MessageQueue.h
+    core/OperationLog.h
+    core/SeedData.h
     persistence/DataPersistence.h
     utils/Logger.h
 )
@@ -89,3 +99,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 if(WIN32)
     set_property(TARGET ${PROJECT_NAME} PROPERTY WIN32_EXECUTABLE FALSE)
 endif()
+
+# Copy icon.png to build directory after build
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/icon.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/icon.png"
+)

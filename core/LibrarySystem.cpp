@@ -1,4 +1,6 @@
 #include "LibrarySystem.h"
+#include "MessageQueue.h"
+#include "OperationLog.h"
 #include <QDateTime>
 
 LibrarySystem::LibrarySystem(QObject* parent)
@@ -13,6 +15,8 @@ LibrarySystem::LibrarySystem(QObject* parent)
           64, [](Book* b) { return b ? b->isbn : ""; }))
     , hotHeap(new MaxHeap<Book, std::function<int(Book*)>>(
           [](Book* b) { return b ? b->borrowCount : 0; }))
+    , messageQueue(new MessageQueueProcessor(this, this))
+    , operationLogger(new OperationLogger(this))
 {
 }
 
@@ -27,6 +31,7 @@ LibrarySystem::~LibrarySystem()
     delete bookTitleHash;
     delete bookISBNHash;
     delete hotHeap;
+    // messageQueue is a QObject child, auto-deleted by Qt
 }
 
 void LibrarySystem::resetStructures()
@@ -70,6 +75,17 @@ Status LibrarySystem::addBook(Book* book)
            QString("将《%1》加入图书链表，索书号%2插入BST，书名加入哈希表，顶点加入推荐图，堆初始化借阅次数为0")
                .arg(QString::fromStdString(book->title))
                .arg(QString::fromStdString(book->callNumber)));
+
+    messageQueue->recordOperation(MsgType::AddBook, QString(), true,
+        QString::fromUtf8("添加图书：《%1》").arg(QString::fromStdString(book->title)),
+        QString::fromStdString(book->isbn));
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("添加图书"),
+        QString::fromUtf8("《%1》 ISBN:%2 库存:%3")
+            .arg(QString::fromStdString(book->title))
+            .arg(QString::fromStdString(book->isbn))
+            .arg(book->totalStock));
     return Status::OK;
 }
 
@@ -86,9 +102,14 @@ Status LibrarySystem::removeBook(const QString& isbn)
     recommendationGraph.removeVertex(sIsbn);
     // 注意：hotHeap不支持直接删除，这里简化处理
 
+    QString removedTitle = QString::fromStdString(target->title);
     delete target;
     emitOp("删除图书", {"链表", "二叉排序树", "哈希表", "图"},
            "从各数据结构中移除图书信息");
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("删除图书"),
+        QString::fromUtf8("《%1》 ISBN:%2").arg(removedTitle).arg(isbn));
     return Status::OK;
 }
 
@@ -116,6 +137,11 @@ Status LibrarySystem::updateBook(const QString& isbn, const QString& newTitle,
 
     emitOp("修改图书", {"链表", "哈希表"},
            QString("修改图书《%1》信息").arg(QString::fromStdString(b->title)));
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("修改图书"),
+        QString::fromUtf8("《%1》 ISBN:%2 库存:%3")
+            .arg(QString::fromStdString(b->title)).arg(isbn).arg(newTotalStock));
     return Status::OK;
 }
 
@@ -153,6 +179,18 @@ Status LibrarySystem::addReader(Reader* reader)
     emitOp("添加读者", {"链表", "哈希表"},
            QString("读者 %1 加入读者链表，学号映射到哈希表")
                .arg(QString::fromStdString(reader->name)));
+
+    messageQueue->recordOperation(MsgType::AddReader,
+        QString::fromStdString(reader->id), true,
+        QString::fromUtf8("添加读者：%1 (%2)").arg(QString::fromStdString(reader->name),
+            QString::fromStdString(reader->id)));
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("添加读者"),
+        QString::fromUtf8("%1 (%2) 院系:%3")
+            .arg(QString::fromStdString(reader->name))
+            .arg(QString::fromStdString(reader->id))
+            .arg(QString::fromStdString(reader->department)));
     return Status::OK;
 }
 
@@ -168,6 +206,10 @@ Status LibrarySystem::removeReader(const QString& id)
     delete r;
 
     emitOp("注销读者", {"链表", "哈希表"}, "从各结构中移除读者");
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("注销读者"),
+        QString::fromUtf8("%1 (%2)").arg(id).arg(QString::fromStdString(r->name)));
     return Status::OK;
 }
 
@@ -183,6 +225,10 @@ Status LibrarySystem::updateReader(const QString& id, const QString& newName,
 
     emitOp("修改读者", {"哈希表"},
            QString("修改读者 %1 信息").arg(QString::fromStdString(r->name)));
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("修改读者"),
+        QString::fromUtf8("%1 (%2)").arg(QString::fromStdString(r->name)).arg(id));
     return Status::OK;
 }
 
@@ -247,6 +293,14 @@ Status LibrarySystem::borrowBook(const QString& readerId, const QString& isbn)
 
     emitOp("借书", {"哈希表", "二叉排序树", "链表", "堆", "图", "栈"},
            QString("哈希表验证读者，BST/索书号定位图书，链表生成借阅记录，堆更新排行，图更新关联，栈记录操作"));
+
+    messageQueue->recordOperation(MsgType::BorrowBook, readerId, true,
+        QString::fromUtf8("借书成功：%1 借阅《%2》").arg(readerId, QString::fromStdString(b->title)),
+        isbn);
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("借阅图书"),
+        QString::fromUtf8("%1 借阅《%2》").arg(readerId, QString::fromStdString(b->title)));
     return Status::OK;
 }
 
@@ -320,6 +374,17 @@ Status LibrarySystem::returnBook(const QString& readerId, const QString& isbn)
 
     emitOp("还书", {"哈希表", "二叉排序树", "链表", "堆", "队列", "栈"},
            "归还图书，自动处理预约队列，更新排行榜");
+
+    Book* nb = findByISBN(isbn);
+    messageQueue->recordOperation(MsgType::ReturnBook, readerId, true,
+        QString::fromUtf8("还书成功：%1 归还《%2》").arg(readerId,
+            QString::fromStdString(nb ? nb->title : isbn.toStdString())),
+        isbn);
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("归还图书"),
+        QString::fromUtf8("%1 归还《%2》").arg(readerId,
+            QString::fromStdString(nb ? nb->title : isbn.toStdString())));
     return Status::OK;
 }
 
@@ -416,6 +481,14 @@ Status LibrarySystem::reserveSeat(int row, int col, const QString& readerId,
     seatMatrix.set(row, col, newSeat);
 
     emitOp("预约座位", {"稀疏矩阵"}, QString("座位(%1,%2)状态更新为已预约").arg(row).arg(col));
+
+    messageQueue->recordOperation(MsgType::ReserveSeat, readerId, true,
+        QString::fromUtf8("预约成功：%1 预约座位(%2,%3)").arg(readerId).arg(row).arg(col),
+        QString(), row, col);
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("预约座位"),
+        QString::fromUtf8("%1 预约座位(%2,%3)").arg(readerId).arg(row).arg(col));
     return Status::OK;
 }
 
@@ -423,11 +496,20 @@ Status LibrarySystem::releaseSeat(int row, int col)
 {
     Seat* s = seatMatrix.getPtr(row, col);
     if (!s) return Status::NotFound;
+    QString rid = QString::fromStdString(s->readerId);
     s->release();
     // 更新稀疏矩阵
     seatMatrix.set(row, col, *s);
 
     emitOp("释放座位", {"稀疏矩阵"}, QString("座位(%1,%2)状态更新为空闲").arg(row).arg(col));
+
+    messageQueue->recordOperation(MsgType::ReleaseSeat, rid, true,
+        QString::fromUtf8("释放成功：座位(%1,%2)已释放").arg(row).arg(col),
+        QString(), row, col);
+
+    operationLogger->log(currentOpId, currentOpAdmin,
+        QString::fromUtf8("释放座位"),
+        QString::fromUtf8("释放座位(%1,%2)").arg(row).arg(col));
     return Status::OK;
 }
 
