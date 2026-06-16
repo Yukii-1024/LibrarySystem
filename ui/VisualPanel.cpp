@@ -388,7 +388,7 @@ void VisualPanel::refreshMatrix()
     const int cs = 52;
 
     auto* title = matrixScene->addText(
-        QString::fromUtf8("座位 10×10  (绿 = 空闲  红 = 已占用  灰 = 维护)"));
+        QString::fromUtf8("座位 10×10  (绿 = 空闲  红 = 已占用)"));
     title->setPos(8, 2);
 
     for (int r = 0; r < 10; ++r) {
@@ -403,9 +403,6 @@ void VisualPanel::refreshMatrix()
                     .arg(QString::fromStdString(s.readerId),
                          QString::fromStdString(s.startTime),
                          QString::fromStdString(s.endTime));
-            } else if (s.status == SeatStatus::Maintenance) {
-                color = QColor(192, 192, 192);
-                tip = QString::fromUtf8("(%1,%2) 维护中").arg(r).arg(c);
             }
             auto* rect = matrixScene->addRect(
                 c * cs + 5, r * cs + 22, cs - 2, cs - 2,

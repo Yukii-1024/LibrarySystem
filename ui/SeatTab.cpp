@@ -25,8 +25,8 @@ void SeatTab::setupUI()
     colSpin = new QSpinBox(); colSpin->setRange(0, 9);
     form->addRow(QString::fromUtf8("行 (0-9):"), rowSpin);
     form->addRow(QString::fromUtf8("列 (0-9):"), colSpin);
-    readerEdit = new QLineEdit(); readerEdit->setPlaceholderText(QString::fromUtf8("读者学号"));
-    form->addRow(QString::fromUtf8("读者ID:"), readerEdit);
+    readerEdit = new QLineEdit(); readerEdit->setPlaceholderText(QString::fromUtf8("请输入学号"));
+    form->addRow(QString::fromUtf8("学号:"), readerEdit);
     startEdit = new QDateTimeEdit(QDateTime::currentDateTime()); startEdit->setDisplayFormat("yyyy-MM-dd hh:mm");
     endEdit = new QDateTimeEdit(QDateTime::currentDateTime().addSecs(7200)); endEdit->setDisplayFormat("yyyy-MM-dd hh:mm");
     form->addRow(QString::fromUtf8("开始:"), startEdit);
@@ -66,7 +66,8 @@ void SeatTab::onReserve()
 {
     int r = rowSpin->value(), c = colSpin->value();
     QString rid = readerEdit->text().trimmed();
-    if (rid.isEmpty()) { QMessageBox::warning(this, QString::fromUtf8("错误"), QString::fromUtf8("请输入读者ID")); return; }
+    if (rid.isEmpty()) { QMessageBox::warning(this, QString::fromUtf8("错误"), QString::fromUtf8("请输入学号")); return; }
+    if (!library->findReader(rid)) { QMessageBox::warning(this, QString::fromUtf8("错误"), QString::fromUtf8("请输入正确的学号")); return; }
     Seat* s = library->getSeat(r, c);
     if (s && !s->isFree()) { QMessageBox::warning(this, QString::fromUtf8("座位已被占用"), QString::fromUtf8("请选择其他座位")); return; }
     library->reserveSeat(r, c, rid,
@@ -105,8 +106,6 @@ void SeatTab::refreshGrid()
                     .arg(QString::fromStdString(s.readerId),
                          QString::fromStdString(s.startTime),
                          QString::fromStdString(s.endTime)));
-            } else if (s.status == SeatStatus::Maintenance) {
-                item->setBackground(QBrush(QColor(200, 200, 200))); // gray = maintenance
             } else {
                 item->setBackground(QBrush(QColor(150, 255, 150))); // green = free
             }

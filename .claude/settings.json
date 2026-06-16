@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:PATH = \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin;C:\\\\Tool\\\\mingw64\\\\bin;$env:PATH\"; cd C:\\\\Projects\\\\LibrarySystem\\\\build; ninja 2>&1)",
+      "PowerShell($env:PATH = \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin;C:\\\\Tool\\\\mingw64\\\\bin;$env:PATH\"; cd C:\\\\Projects\\\\LibrarySystem\\\\build; windeployqt --release --no-translations \".\\\\LibrarySystem.exe\" 2>&1 | Select-Object -First 1; $p = Start-Process -FilePath \".\\\\LibrarySystem.exe\" -PassThru; Start-Sleep 2; if \\($p.HasExited\\) { Write-Host \"CRASH: $\\($p.ExitCode\\)\" } else { Write-Host \"OK PID=$\\($p.Id\\)\"; $p.Kill\\(\\) })",
+      "PowerShell($env:PATH = \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin;C:\\\\Tool\\\\mingw64\\\\bin;$env:PATH\"; cd C:\\\\Projects\\\\LibrarySystem\\\\build; cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=\"C:/Tool/pandacpp/mingw64/bin/g++.exe\" 2>&1; ninja 2>&1)",
+      "PowerShell(Get-Process LibrarySystem -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 1; $env:PATH = \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin;C:\\\\Tool\\\\mingw64\\\\bin;$env:PATH\"; cd C:\\\\Projects\\\\LibrarySystem\\\\build; ninja 2>&1)",
+      "PowerShell($env:PATH = \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin;C:\\\\Tool\\\\mingw64\\\\bin;$env:PATH\"; cd C:\\\\Projects\\\\LibrarySystem\\\\build; Copy-Item \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin\\\\libstdc++-6.dll\" \".\\\\libstdc++-6.dll\" -Force; Copy-Item \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin\\\\libgcc_s_seh-1.dll\" \".\\\\libgcc_s_seh-1.dll\" -Force; Copy-Item \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin\\\\libwinpthread-1.dll\" \".\\\\libwinpthread-1.dll\" -Force; windeployqt --release --no-translations \".\\\\LibrarySystem.exe\" 2>&1 | Select-Object -First 2; Write-Host \"...Done\"; Remove-Item \"C:\\\\Projects\\\\LibrarySystem\\\\build\\\\library_data.json\" -ErrorAction SilentlyContinue; Remove-Item \"C:\\\\Projects\\\\LibrarySystem\\\\build\\\\library.db\" -ErrorAction SilentlyContinue; Write-Host \"Old data files cleaned\")",
+      "PowerShell(cd C:\\\\Projects\\\\LibrarySystem\\\\build; $p = Start-Process -FilePath \".\\\\LibrarySystem.exe\" -PassThru; Start-Sleep 2; if \\($p.HasExited\\) { Write-Host \"CRASHED: $\\($p.ExitCode\\)\" } else { Write-Host \"OK PID=$\\($p.Id\\)\"; $p.Kill\\(\\) }; Write-Host \"---\"; if \\(Test-Path \".\\\\library.db\"\\) { Write-Host \"SQLite DB created: OK\"; \\(Get-Item \".\\\\library.db\"\\).Length } else { Write-Host \"SQLite DB missing!\" })",
+      "PowerShell(Get-ChildItem \"C:\\\\Projects\\\\LibrarySystem\\\\library.db\", \"C:\\\\Projects\\\\LibrarySystem\\\\build\\\\library.db\", \"$env:USERPROFILE\\\\library.db\", \"C:\\\\Windows\\\\System32\\\\library.db\" -ErrorAction SilentlyContinue | Select-Object FullName, Length)",
+      "PowerShell(cd C:\\\\Projects\\\\LibrarySystem\\\\build; $p = Start-Process -FilePath \".\\\\LibrarySystem.exe\" -PassThru; Start-Sleep 2; if \\($p.HasExited\\) { Write-Host \"CRASHED: $\\($p.ExitCode\\)\" } else { Write-Host \"OK PID=$\\($p.Id\\)\"; $p.Kill\\(\\) }; Start-Sleep 1; if \\(Test-Path \".\\\\library.db\"\\) { Write-Host \"DB created: $\\( \\(Get-Item '.\\\\library.db'\\).Length \\) bytes\" } else { Write-Host \"DB still missing\" })",
+      "Read(//c/Qt/6.8.2/mingw_64/plugins/sqldrivers/**)",
+      "Read(//c/Projects/**)",
+      "Read(//c/Users/**)",
+      "Read(//c/Windows/**)",
+      "Read(//c/Projects/LibrarySystem/build/**)",
+      "PowerShell($env:PATH = \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin;C:\\\\Tool\\\\mingw64\\\\bin;$env:PATH\"; cd C:\\\\Projects\\\\LibrarySystem\\\\build; Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c `\"echo START & .\\\\LibrarySystem.exe & echo EXIT=%ERRORLEVEL%`\"\" -NoNewWindow -RedirectStandardOutput \"dbg.txt\" -RedirectStandardError \"dbg_err.txt\" -Wait -Timeout 5; Write-Host \"=== stdout ===\"; Get-Content dbg.txt -ErrorAction SilentlyContinue; Write-Host \"=== stderr ===\"; Get-Content dbg_err.txt -ErrorAction SilentlyContinue)",
+      "PowerShell($env:PATH = \"C:\\\\Qt\\\\6.8.2\\\\mingw_64\\\\bin;C:\\\\Tool\\\\mingw64\\\\bin;$env:PATH\"; cd C:\\\\Projects\\\\LibrarySystem\\\\build; ninja 2>&1; windeployqt --release --no-translations \".\\\\LibrarySystem.exe\" 2>&1 | Select-Object -First 2)",
+      "Read(//c/Qt/6.8.2/mingw_64/bin/**)"
+    ]
+  }
+}

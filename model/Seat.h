@@ -6,8 +6,7 @@
  */
 enum class SeatStatus {
     Free = 0,       // 空闲
-    Occupied = 1,   // 已预约
-    Maintenance = 2 // 维修中
+    Occupied = 1   // 已预约
 };
 
 /**
