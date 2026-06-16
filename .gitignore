@@ -1,5 +1,6 @@
 # Build output
 build/
+build_release/
 
 # Qt autogen temp
 qt_autogen_tmp/
